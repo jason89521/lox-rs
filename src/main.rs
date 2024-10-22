@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::process::exit;
 
 use miette::IntoDiagnostic;
 
@@ -23,9 +24,18 @@ fn main() {
                     String::new()
                 });
 
-            let lexer = codecrafters_interpreter::Lexer::new(&file_contents);
-            for token in lexer {
-                println!("{}", token);
+            let mut lexer = codecrafters_interpreter::Lexer::new(&file_contents);
+            for token in &mut lexer {
+                match token {
+                    Ok(token) => println!("{}", token),
+                    Err(e) => {
+                        eprintln!("[line {}] Error: {}", e.line(), e)
+                    }
+                }
+            }
+
+            if lexer.has_error() {
+                exit(65)
             }
         }
         _ => {

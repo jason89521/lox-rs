@@ -1,4 +1,28 @@
+use miette::SourceSpan;
 use std::fmt::Display;
+
+#[derive(thiserror::Error, Debug, miette::Diagnostic)]
+pub enum LexerError {
+    #[error("Unexpected character: {token}")]
+    UnexpectedCharacter {
+        token: char,
+        #[source_code]
+        src: String,
+        #[label("The unexpected character")]
+        span: SourceSpan,
+    },
+}
+
+impl LexerError {
+    pub fn line(&self) -> usize {
+        match self {
+            Self::UnexpectedCharacter { src, span, .. } => {
+                let line = src[..=span.offset()].lines().count();
+                line
+            }
+        }
+    }
+}
 
 #[derive(Debug, strum::Display)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
@@ -81,6 +105,7 @@ impl Display for Token<'_> {
 }
 
 pub struct Lexer<'a> {
+    has_error: bool,
     source: &'a str,
     rest: &'a str,
     byte_offset: usize,
@@ -89,22 +114,27 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
+            has_error: false,
             source,
             rest: source,
             byte_offset: 0,
         }
     }
+
+    pub fn has_error(&self) -> bool {
+        self.has_error
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Token<'a>;
+    type Item = Result<Token<'a>, LexerError>;
     fn next(&mut self) -> Option<Self::Item> {
         let mut chars = self.rest.chars();
         let ch = chars.next();
         if ch.is_none() {
             return if self.byte_offset == self.source.len() {
                 self.byte_offset += 1;
-                Some(Token::new(TokenType::Eof, ""))
+                Some(Ok(Token::new(TokenType::Eof, "")))
             } else {
                 None
             };
@@ -115,26 +145,32 @@ impl<'a> Iterator for Lexer<'a> {
         self.byte_offset += ch.len_utf8();
 
         match ch {
-            '(' => return Some(Token::new(TokenType::LeftParen, "(")),
-            ')' => return Some(Token::new(TokenType::RightParen, ")")),
-            '{' => return Some(Token::new(TokenType::LeftBrace, "{")),
-            '}' => return Some(Token::new(TokenType::RightBrace, "}")),
-            ',' => return Some(Token::new(TokenType::Comma, ",")),
-            '.' => return Some(Token::new(TokenType::Dot, ".")),
-            '-' => return Some(Token::new(TokenType::Minus, "-")),
-            '+' => return Some(Token::new(TokenType::Plus, "+")),
-            '*' => return Some(Token::new(TokenType::Star, "*")),
-            ';' => return Some(Token::new(TokenType::Semicolon, ";")),
+            '(' => return Some(Ok(Token::new(TokenType::LeftParen, "("))),
+            ')' => return Some(Ok(Token::new(TokenType::RightParen, ")"))),
+            '{' => return Some(Ok(Token::new(TokenType::LeftBrace, "{"))),
+            '}' => return Some(Ok(Token::new(TokenType::RightBrace, "}"))),
+            ',' => return Some(Ok(Token::new(TokenType::Comma, ","))),
+            '.' => return Some(Ok(Token::new(TokenType::Dot, "."))),
+            '-' => return Some(Ok(Token::new(TokenType::Minus, "-"))),
+            '+' => return Some(Ok(Token::new(TokenType::Plus, "+"))),
+            '*' => return Some(Ok(Token::new(TokenType::Star, "*"))),
+            ';' => return Some(Ok(Token::new(TokenType::Semicolon, ";"))),
             ch => {
-                let a = miette::miette!(
-                    labels = vec![miette::LabeledSpan::at_offset(byte_offset, "here")],
-                    // Rest of the arguments are passed to `format!`
-                    // to form diagnostic message
-                    "Unimplemented token: {ch}"
-                )
-                .with_source_code(self.source.to_string());
-                eprintln!("{:?}", a);
-                todo!()
+                // let a = miette::miette!(
+                //     labels = vec![miette::LabeledSpan::at_offset(byte_offset, "here")],
+                //     // Rest of the arguments are passed to `format!`
+                //     // to form diagnostic message
+                //     "Unimplemented token: {ch}"
+                // )
+                // .with_source_code(self.source.to_string());
+                // eprintln!("{:?}", a);
+                self.has_error = true;
+
+                return Some(Err(LexerError::UnexpectedCharacter {
+                    token: ch,
+                    src: self.source.to_string(),
+                    span: SourceSpan::from(byte_offset..(byte_offset + ch.len_utf8())),
+                }));
             }
         }
     }
