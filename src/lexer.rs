@@ -56,7 +56,6 @@ pub struct Token<'a> {
     token_type: TokenType,
     lexeme: &'a str,
     literal: Option<&'a str>,
-    line: i32,
 }
 
 impl<'a> Token<'a> {
@@ -65,7 +64,6 @@ impl<'a> Token<'a> {
             token_type,
             lexeme,
             literal: None,
-            line: 1,
         }
     }
 
@@ -121,6 +119,12 @@ impl<'a> Iterator for Lexer<'a> {
             ')' => return Some(Token::new(TokenType::RightParen, ")")),
             '{' => return Some(Token::new(TokenType::LeftBrace, "{")),
             '}' => return Some(Token::new(TokenType::RightBrace, "}")),
+            ',' => return Some(Token::new(TokenType::Comma, ",")),
+            '.' => return Some(Token::new(TokenType::Dot, ".")),
+            '-' => return Some(Token::new(TokenType::Minus, "-")),
+            '+' => return Some(Token::new(TokenType::Plus, "+")),
+            '*' => return Some(Token::new(TokenType::Star, "*")),
+            ';' => return Some(Token::new(TokenType::Semicolon, ";")),
             ch => {
                 let a = miette::miette!(
                     labels = vec![miette::LabeledSpan::at_offset(byte_offset, "here")],
