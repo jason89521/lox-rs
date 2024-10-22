@@ -129,84 +129,98 @@ impl<'a> Lexer<'a> {
 impl<'a> Iterator for Lexer<'a> {
     type Item = Result<Token<'a>, LexerError<'a>>;
     fn next(&mut self) -> Option<Self::Item> {
-        let mut chars = self.rest.chars();
-        let ch = chars.next();
-        if ch.is_none() {
-            return if self.byte_offset == self.source.len() {
-                self.byte_offset += 1;
-                Some(Ok(Token::new(TokenKind::Eof, "")))
-            } else {
-                None
-            };
-        }
-        let ch = ch.unwrap();
-        let ch_str = &self.rest[..ch.len_utf8()];
-        let byte_offset = self.byte_offset;
-        let origin_rest = self.rest;
-        self.rest = chars.as_str();
-        self.byte_offset += ch.len_utf8();
-
-        let pure_token = |kind: TokenKind| Some(Ok(Token::new(kind, ch_str)));
-        let token_item = |token: Token<'a>| Some(Ok(token));
-
-        enum MultiCharToken {
-            WithEqual { yes: TokenKind, no: TokenKind },
-        }
-
-        let multi_char_token = match ch {
-            '(' => return pure_token(TokenKind::LeftParen),
-            ')' => return pure_token(TokenKind::RightParen),
-            '{' => return pure_token(TokenKind::LeftBrace),
-            '}' => return pure_token(TokenKind::RightBrace),
-            ',' => return pure_token(TokenKind::Comma),
-            '.' => return pure_token(TokenKind::Dot),
-            '-' => return pure_token(TokenKind::Minus),
-            '+' => return pure_token(TokenKind::Plus),
-            '*' => return pure_token(TokenKind::Star),
-            ';' => return pure_token(TokenKind::Semicolon),
-            '=' => MultiCharToken::WithEqual {
-                yes: TokenKind::EqualEqual,
-                no: TokenKind::Equal,
-            },
-            '!' => MultiCharToken::WithEqual {
-                yes: TokenKind::BangEqual,
-                no: TokenKind::Bang,
-            },
-            '<' => MultiCharToken::WithEqual {
-                yes: TokenKind::LessEqual,
-                no: TokenKind::Less,
-            },
-            '>' => MultiCharToken::WithEqual {
-                yes: TokenKind::GreaterEqual,
-                no: TokenKind::Greater,
-            },
-            ch => {
-                // let a = miette::miette!(
-                //     labels = vec![miette::LabeledSpan::at_offset(byte_offset, "here")],
-                //     // Rest of the arguments are passed to `format!`
-                //     // to form diagnostic message
-                //     "Unimplemented token: {ch}"
-                // )
-                // .with_source_code(self.source.to_string());
-                // eprintln!("{:?}", a);
-                self.has_error = true;
-
-                return Some(Err(LexerError::UnexpectedCharacter {
-                    token: ch,
-                    src: self.source,
-                    span: SourceSpan::from(byte_offset..(byte_offset + ch.len_utf8())),
-                }));
-            }
-        };
-
-        match multi_char_token {
-            MultiCharToken::WithEqual { yes, no } => {
-                if self.rest.starts_with('=') {
+        loop {
+            let mut chars = self.rest.chars();
+            let ch = chars.next();
+            if ch.is_none() {
+                return if self.byte_offset == self.source.len() {
                     self.byte_offset += 1;
-                    self.rest = &self.rest[1..];
-                    return token_item(Token::new(yes, &origin_rest[..ch.len_utf8() + 1]));
+                    Some(Ok(Token::new(TokenKind::Eof, "")))
                 } else {
-                    return token_item(Token::new(no, ch_str));
+                    None
+                };
+            }
+            let ch = ch.unwrap();
+            let ch_str = &self.rest[..ch.len_utf8()];
+            let byte_offset = self.byte_offset;
+            let origin_rest = self.rest;
+            self.rest = chars.as_str();
+            self.byte_offset += ch.len_utf8();
+
+            let pure_token = |kind: TokenKind| Some(Ok(Token::new(kind, ch_str)));
+            let token_item = |token: Token<'a>| Some(Ok(token));
+
+            enum MultiCharToken {
+                WithEqual { yes: TokenKind, no: TokenKind },
+                Slash,
+            }
+
+            let multi_char_token = match ch {
+                '(' => return pure_token(TokenKind::LeftParen),
+                ')' => return pure_token(TokenKind::RightParen),
+                '{' => return pure_token(TokenKind::LeftBrace),
+                '}' => return pure_token(TokenKind::RightBrace),
+                ',' => return pure_token(TokenKind::Comma),
+                '.' => return pure_token(TokenKind::Dot),
+                '-' => return pure_token(TokenKind::Minus),
+                '+' => return pure_token(TokenKind::Plus),
+                '*' => return pure_token(TokenKind::Star),
+                ';' => return pure_token(TokenKind::Semicolon),
+                '=' => MultiCharToken::WithEqual {
+                    yes: TokenKind::EqualEqual,
+                    no: TokenKind::Equal,
+                },
+                '!' => MultiCharToken::WithEqual {
+                    yes: TokenKind::BangEqual,
+                    no: TokenKind::Bang,
+                },
+                '<' => MultiCharToken::WithEqual {
+                    yes: TokenKind::LessEqual,
+                    no: TokenKind::Less,
+                },
+                '>' => MultiCharToken::WithEqual {
+                    yes: TokenKind::GreaterEqual,
+                    no: TokenKind::Greater,
+                },
+                '/' => MultiCharToken::Slash,
+                ch => {
+                    // let a = miette::miette!(
+                    //     labels = vec![miette::LabeledSpan::at_offset(byte_offset, "here")],
+                    //     // Rest of the arguments are passed to `format!`
+                    //     // to form diagnostic message
+                    //     "Unimplemented token: {ch}"
+                    // )
+                    // .with_source_code(self.source.to_string());
+                    // eprintln!("{:?}", a);
+                    self.has_error = true;
+
+                    return Some(Err(LexerError::UnexpectedCharacter {
+                        token: ch,
+                        src: self.source,
+                        span: SourceSpan::from(byte_offset..(byte_offset + ch.len_utf8())),
+                    }));
+                }
+            };
+
+            match multi_char_token {
+                MultiCharToken::WithEqual { yes, no } => {
+                    if self.rest.starts_with('=') {
+                        self.byte_offset += 1;
+                        self.rest = &self.rest[1..];
+                        return token_item(Token::new(yes, &origin_rest[..ch.len_utf8() + 1]));
+                    } else {
+                        return token_item(Token::new(no, ch_str));
+                    }
+                }
+                MultiCharToken::Slash => {
+                    if self.rest.starts_with('/') {
+                        let line_end = self.rest.find('\n').unwrap_or(self.rest.len());
+                        self.byte_offset += line_end;
+                        self.rest = &self.rest[line_end..];
+                        continue;
+                    } else {
+                        return token_item(Token::new(TokenKind::Slash, ch_str));
+                    }
                 }
             }
         }

@@ -2,8 +2,6 @@ use std::env;
 use std::fs;
 use std::process::exit;
 
-use miette::IntoDiagnostic;
-
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -17,12 +15,10 @@ fn main() {
 
     match command.as_str() {
         "tokenize" => {
-            let file_contents = fs::read_to_string(filename)
-                .into_diagnostic()
-                .unwrap_or_else(|_| {
-                    eprintln!("Failed to read file {}", filename);
-                    String::new()
-                });
+            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
+                eprintln!("Failed to read file {}", filename);
+                String::new()
+            });
 
             let mut lexer = codecrafters_interpreter::Lexer::new(&file_contents);
             for token in &mut lexer {
