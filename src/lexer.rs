@@ -312,7 +312,27 @@ impl<'a> Iterator for Lexer<'a> {
                     self.byte_offset += extra_bytes;
                     self.rest = &self.rest[extra_bytes..];
 
-                    return token_item(Token::new(TokenKind::Identifier, lexeme));
+                    let kind = match lexeme {
+                        "and" => TokenKind::And,
+                        "class" => TokenKind::Class,
+                        "else" => TokenKind::Else,
+                        "false" => TokenKind::False,
+                        "for" => TokenKind::For,
+                        "fun" => TokenKind::Fun,
+                        "if" => TokenKind::If,
+                        "nil" => TokenKind::Nil,
+                        "or" => TokenKind::Or,
+                        "print" => TokenKind::Print,
+                        "return" => TokenKind::Return,
+                        "super" => TokenKind::Super,
+                        "this" => TokenKind::This,
+                        "true" => TokenKind::True,
+                        "var" => TokenKind::Var,
+                        "while" => TokenKind::While,
+                        _ => TokenKind::Identifier,
+                    };
+
+                    return token_item(Token::new(kind, lexeme));
                 }
             }
         }
