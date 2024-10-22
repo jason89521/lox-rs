@@ -20,6 +20,8 @@ pub enum LexerErrorKind {
     UnexpectedCharacter { token: char },
     #[error("Unterminated string.")]
     UnterminatedString,
+    #[error("Invalid number.")]
+    InvalidNumber,
 }
 
 impl<'a> LexerError<'a> {
@@ -38,7 +40,7 @@ impl<'a> LexerError<'a> {
 
 #[derive(Debug, strum::Display)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-pub enum TokenKind<'a> {
+pub enum TokenKind {
     // Single-character tokens.
     LeftParen,
     RightParen,
@@ -65,7 +67,7 @@ pub enum TokenKind<'a> {
     // Literals.
     Identifier,
     String,
-    Number(&'a str),
+    Number(f64),
 
     // Keywords.
     And,
@@ -89,24 +91,35 @@ pub enum TokenKind<'a> {
 }
 
 pub struct Token<'a> {
-    kind: TokenKind<'a>,
+    kind: TokenKind,
     lexeme: &'a str,
 }
 
 impl<'a> Token<'a> {
-    pub fn new(kind: TokenKind<'a>, lexeme: &'a str) -> Self {
+    pub fn new(kind: TokenKind, lexeme: &'a str) -> Self {
         Self { kind, lexeme }
     }
 }
 
 impl Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let literal = match &self.kind {
-            TokenKind::Number(number) => number,
-            TokenKind::String => self.lexeme.trim_matches('"'),
-            _ => "null",
-        };
-        write!(f, "{} {} {}", self.kind, self.lexeme, literal)
+        match &self.kind {
+            TokenKind::Number(number) => {
+                if number.trunc() == *number {
+                    write!(f, "{} {} {}.0", self.kind, self.lexeme, number)
+                } else {
+                    write!(f, "{} {} {}", self.kind, self.lexeme, number)
+                }
+            }
+            TokenKind::String => write!(
+                f,
+                "{} {} {}",
+                self.kind,
+                self.lexeme,
+                self.lexeme.trim_matches('"')
+            ),
+            _ => write!(f, "{} {} null", self.kind, self.lexeme),
+        }
     }
 }
 
@@ -153,16 +166,14 @@ impl<'a> Iterator for Lexer<'a> {
             self.rest = chars.as_str();
             self.byte_offset += ch.len_utf8();
 
-            let pure_token = |kind: TokenKind<'a>| Some(Ok(Token::new(kind, ch_str)));
+            let pure_token = |kind: TokenKind| Some(Ok(Token::new(kind, ch_str)));
             let token_item = |token: Token<'a>| Some(Ok(token));
 
-            enum MultiCharToken<'a> {
-                WithEqual {
-                    yes: TokenKind<'a>,
-                    no: TokenKind<'a>,
-                },
+            enum MultiCharToken {
+                WithEqual { yes: TokenKind, no: TokenKind },
                 Slash,
                 String,
+                Number,
             }
 
             let multi_char_token = match ch {
@@ -194,6 +205,7 @@ impl<'a> Iterator for Lexer<'a> {
                 },
                 '/' => MultiCharToken::Slash,
                 '"' => MultiCharToken::String,
+                '0'..='9' => MultiCharToken::Number,
                 ch if ch.is_whitespace() => continue,
                 ch => {
                     // let a = miette::miette!(
@@ -250,6 +262,44 @@ impl<'a> Iterator for Lexer<'a> {
                             self.source,
                         )));
                     }
+                }
+                MultiCharToken::Number => {
+                    let non_digit_pos = origin_rest
+                        .find(|c| !matches!(c, '.' | '0'..='9'))
+                        .unwrap_or(origin_rest.len());
+                    let mut lexeme = &origin_rest[..non_digit_pos];
+                    let mut splitted_by_dot = lexeme.splitn(3, '.');
+                    match (
+                        splitted_by_dot.next(),
+                        splitted_by_dot.next(),
+                        splitted_by_dot.next(),
+                    ) {
+                        (Some(i), Some(f), _) => {
+                            // 12. or 12..
+                            if f.is_empty() {
+                                lexeme = &lexeme[..i.len()]
+                            } else {
+                                lexeme = &lexeme[..i.len() + 1 + f.len()]
+                            }
+                        }
+                        _ => {}
+                    }
+                    let extra_byte = lexeme.len() - ch.len_utf8();
+                    self.byte_offset += extra_byte;
+                    self.rest = &self.rest[extra_byte..];
+
+                    let parsed_number = match lexeme.parse() {
+                        Ok(n) => n,
+                        Err(_) => {
+                            return Some(Err(LexerError::new(
+                                LexerErrorKind::InvalidNumber,
+                                SourceSpan::from(byte_offset - lexeme.len()..byte_offset),
+                                &self.source,
+                            )))
+                        }
+                    };
+
+                    return token_item(Token::new(TokenKind::Number(parsed_number), lexeme));
                 }
             }
         }
