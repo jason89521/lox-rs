@@ -2,18 +2,18 @@ use miette::SourceSpan;
 use std::fmt::Display;
 
 #[derive(thiserror::Error, Debug, miette::Diagnostic)]
-pub enum LexerError {
+pub enum LexerError<'a> {
     #[error("Unexpected character: {token}")]
     UnexpectedCharacter {
         token: char,
         #[source_code]
-        src: String,
+        src: &'a str,
         #[label("The unexpected character")]
         span: SourceSpan,
     },
 }
 
-impl LexerError {
+impl<'a> LexerError<'a> {
     pub fn line(&self) -> usize {
         match self {
             Self::UnexpectedCharacter { src, span, .. } => {
@@ -26,7 +26,7 @@ impl LexerError {
 
 #[derive(Debug, strum::Display)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-pub enum TokenType {
+pub enum TokenKind {
     // Single-character tokens.
     LeftParen,
     RightParen,
@@ -77,15 +77,15 @@ pub enum TokenType {
 }
 
 pub struct Token<'a> {
-    token_type: TokenType,
+    token_kind: TokenKind,
     lexeme: &'a str,
     literal: Option<&'a str>,
 }
 
 impl<'a> Token<'a> {
-    pub fn new(token_type: TokenType, lexeme: &'a str) -> Self {
+    pub fn new(token_kind: TokenKind, lexeme: &'a str) -> Self {
         Self {
-            token_type,
+            token_kind,
             lexeme,
             literal: None,
         }
@@ -100,7 +100,7 @@ impl<'a> Token<'a> {
 impl Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let literal = self.literal.unwrap_or("null");
-        write!(f, "{} {} {}", &self.token_type, self.lexeme, literal)
+        write!(f, "{} {} {}", &self.token_kind, self.lexeme, literal)
     }
 }
 
@@ -127,34 +127,47 @@ impl<'a> Lexer<'a> {
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Result<Token<'a>, LexerError>;
+    type Item = Result<Token<'a>, LexerError<'a>>;
     fn next(&mut self) -> Option<Self::Item> {
         let mut chars = self.rest.chars();
         let ch = chars.next();
         if ch.is_none() {
             return if self.byte_offset == self.source.len() {
                 self.byte_offset += 1;
-                Some(Ok(Token::new(TokenType::Eof, "")))
+                Some(Ok(Token::new(TokenKind::Eof, "")))
             } else {
                 None
             };
         }
         let ch = ch.unwrap();
+        let ch_str = &self.rest[..ch.len_utf8()];
         let byte_offset = self.byte_offset;
+        let origin_rest = self.rest;
         self.rest = chars.as_str();
         self.byte_offset += ch.len_utf8();
 
-        match ch {
-            '(' => return Some(Ok(Token::new(TokenType::LeftParen, "("))),
-            ')' => return Some(Ok(Token::new(TokenType::RightParen, ")"))),
-            '{' => return Some(Ok(Token::new(TokenType::LeftBrace, "{"))),
-            '}' => return Some(Ok(Token::new(TokenType::RightBrace, "}"))),
-            ',' => return Some(Ok(Token::new(TokenType::Comma, ","))),
-            '.' => return Some(Ok(Token::new(TokenType::Dot, "."))),
-            '-' => return Some(Ok(Token::new(TokenType::Minus, "-"))),
-            '+' => return Some(Ok(Token::new(TokenType::Plus, "+"))),
-            '*' => return Some(Ok(Token::new(TokenType::Star, "*"))),
-            ';' => return Some(Ok(Token::new(TokenType::Semicolon, ";"))),
+        let pure_token = |kind: TokenKind| Some(Ok(Token::new(kind, ch_str)));
+        let token_item = |token: Token<'a>| Some(Ok(token));
+
+        enum MultiCharToken {
+            WithEqual { yes: TokenKind, no: TokenKind },
+        }
+
+        let multi_char_token = match ch {
+            '(' => return pure_token(TokenKind::LeftParen),
+            ')' => return pure_token(TokenKind::RightParen),
+            '{' => return pure_token(TokenKind::LeftBrace),
+            '}' => return pure_token(TokenKind::RightBrace),
+            ',' => return pure_token(TokenKind::Comma),
+            '.' => return pure_token(TokenKind::Dot),
+            '-' => return pure_token(TokenKind::Minus),
+            '+' => return pure_token(TokenKind::Plus),
+            '*' => return pure_token(TokenKind::Star),
+            ';' => return pure_token(TokenKind::Semicolon),
+            '=' => MultiCharToken::WithEqual {
+                yes: TokenKind::EqualEqual,
+                no: TokenKind::Equal,
+            },
             ch => {
                 // let a = miette::miette!(
                 //     labels = vec![miette::LabeledSpan::at_offset(byte_offset, "here")],
@@ -168,9 +181,21 @@ impl<'a> Iterator for Lexer<'a> {
 
                 return Some(Err(LexerError::UnexpectedCharacter {
                     token: ch,
-                    src: self.source.to_string(),
+                    src: self.source,
                     span: SourceSpan::from(byte_offset..(byte_offset + ch.len_utf8())),
                 }));
+            }
+        };
+
+        match multi_char_token {
+            MultiCharToken::WithEqual { yes, no } => {
+                if self.rest.starts_with('=') {
+                    self.byte_offset += 1;
+                    self.rest = &self.rest[1..];
+                    return token_item(Token::new(yes, &origin_rest[..ch.len_utf8() + 1]));
+                } else {
+                    return token_item(Token::new(no, ch_str));
+                }
             }
         }
     }
