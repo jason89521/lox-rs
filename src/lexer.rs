@@ -172,6 +172,14 @@ impl<'a> Iterator for Lexer<'a> {
                 yes: TokenKind::BangEqual,
                 no: TokenKind::Bang,
             },
+            '<' => MultiCharToken::WithEqual {
+                yes: TokenKind::LessEqual,
+                no: TokenKind::Less,
+            },
+            '>' => MultiCharToken::WithEqual {
+                yes: TokenKind::GreaterEqual,
+                no: TokenKind::Greater,
+            },
             ch => {
                 // let a = miette::miette!(
                 //     labels = vec![miette::LabeledSpan::at_offset(byte_offset, "here")],
