@@ -183,6 +183,7 @@ impl<'a> Iterator for Lexer<'a> {
                     no: TokenKind::Greater,
                 },
                 '/' => MultiCharToken::Slash,
+                ch if ch.is_whitespace() => continue,
                 ch => {
                     // let a = miette::miette!(
                     //     labels = vec![miette::LabeledSpan::at_offset(byte_offset, "here")],
