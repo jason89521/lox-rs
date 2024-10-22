@@ -1,32 +1,44 @@
 use miette::SourceSpan;
 use std::fmt::Display;
 
-#[derive(thiserror::Error, Debug, miette::Diagnostic)]
-pub enum LexerError<'a> {
+#[derive(thiserror::Error, Debug)]
+pub struct LexerError<'a> {
+    source_code: &'a str,
+    span: SourceSpan,
+    kind: LexerErrorKind,
+}
+
+impl Display for LexerError<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.kind)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum LexerErrorKind {
     #[error("Unexpected character: {token}")]
-    UnexpectedCharacter {
-        token: char,
-        #[source_code]
-        src: &'a str,
-        #[label("The unexpected character")]
-        span: SourceSpan,
-    },
+    UnexpectedCharacter { token: char },
+    #[error("Unterminated string.")]
+    UnterminatedString,
 }
 
 impl<'a> LexerError<'a> {
     pub fn line(&self) -> usize {
-        match self {
-            Self::UnexpectedCharacter { src, span, .. } => {
-                let line = src[..=span.offset()].lines().count();
-                line
-            }
+        self.source_code[..=self.span.offset()].lines().count()
+    }
+
+    pub fn new(kind: LexerErrorKind, span: SourceSpan, source_code: &'a str) -> Self {
+        Self {
+            source_code,
+            span,
+            kind,
         }
     }
 }
 
 #[derive(Debug, strum::Display)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
-pub enum TokenKind {
+pub enum TokenKind<'a> {
     // Single-character tokens.
     LeftParen,
     RightParen,
@@ -53,7 +65,7 @@ pub enum TokenKind {
     // Literals.
     Identifier,
     String,
-    Number,
+    Number(&'a str),
 
     // Keywords.
     And,
@@ -77,30 +89,24 @@ pub enum TokenKind {
 }
 
 pub struct Token<'a> {
-    token_kind: TokenKind,
+    kind: TokenKind<'a>,
     lexeme: &'a str,
-    literal: Option<&'a str>,
 }
 
 impl<'a> Token<'a> {
-    pub fn new(token_kind: TokenKind, lexeme: &'a str) -> Self {
-        Self {
-            token_kind,
-            lexeme,
-            literal: None,
-        }
-    }
-
-    pub fn set_literal(mut self, literal: &'a str) -> Self {
-        self.literal = Some(literal);
-        self
+    pub fn new(kind: TokenKind<'a>, lexeme: &'a str) -> Self {
+        Self { kind, lexeme }
     }
 }
 
 impl Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let literal = self.literal.unwrap_or("null");
-        write!(f, "{} {} {}", &self.token_kind, self.lexeme, literal)
+        let literal = match &self.kind {
+            TokenKind::Number(number) => number,
+            TokenKind::String => self.lexeme.trim_matches('"'),
+            _ => "null",
+        };
+        write!(f, "{} {} {}", self.kind, self.lexeme, literal)
     }
 }
 
@@ -147,12 +153,16 @@ impl<'a> Iterator for Lexer<'a> {
             self.rest = chars.as_str();
             self.byte_offset += ch.len_utf8();
 
-            let pure_token = |kind: TokenKind| Some(Ok(Token::new(kind, ch_str)));
+            let pure_token = |kind: TokenKind<'a>| Some(Ok(Token::new(kind, ch_str)));
             let token_item = |token: Token<'a>| Some(Ok(token));
 
-            enum MultiCharToken {
-                WithEqual { yes: TokenKind, no: TokenKind },
+            enum MultiCharToken<'a> {
+                WithEqual {
+                    yes: TokenKind<'a>,
+                    no: TokenKind<'a>,
+                },
                 Slash,
+                String,
             }
 
             let multi_char_token = match ch {
@@ -183,6 +193,7 @@ impl<'a> Iterator for Lexer<'a> {
                     no: TokenKind::Greater,
                 },
                 '/' => MultiCharToken::Slash,
+                '"' => MultiCharToken::String,
                 ch if ch.is_whitespace() => continue,
                 ch => {
                     // let a = miette::miette!(
@@ -195,11 +206,11 @@ impl<'a> Iterator for Lexer<'a> {
                     // eprintln!("{:?}", a);
                     self.has_error = true;
 
-                    return Some(Err(LexerError::UnexpectedCharacter {
-                        token: ch,
-                        src: self.source,
-                        span: SourceSpan::from(byte_offset..(byte_offset + ch.len_utf8())),
-                    }));
+                    return Some(Err(LexerError::new(
+                        LexerErrorKind::UnexpectedCharacter { token: ch },
+                        SourceSpan::from(byte_offset..(byte_offset + ch.len_utf8())),
+                        self.source,
+                    )));
                 }
             };
 
@@ -221,6 +232,23 @@ impl<'a> Iterator for Lexer<'a> {
                         continue;
                     } else {
                         return token_item(Token::new(TokenKind::Slash, ch_str));
+                    }
+                }
+                MultiCharToken::String => {
+                    if let Some(string_end) = self.rest.find('"') {
+                        let lexeme = &origin_rest[..=string_end + 1];
+                        self.rest = &self.rest[string_end + 1..];
+                        self.byte_offset += string_end + 1;
+                        return token_item(Token::new(TokenKind::String, lexeme));
+                    } else {
+                        self.has_error = true;
+                        self.byte_offset = self.source.len();
+                        self.rest = &self.rest[self.rest.len()..];
+                        return Some(Err(LexerError::new(
+                            LexerErrorKind::UnterminatedString,
+                            SourceSpan::from(byte_offset..self.source.len()),
+                            self.source,
+                        )));
                     }
                 }
             }
