@@ -174,6 +174,7 @@ impl<'a> Iterator for Lexer<'a> {
                 Slash,
                 String,
                 Number,
+                Identifier,
             }
 
             let multi_char_token = match ch {
@@ -206,6 +207,7 @@ impl<'a> Iterator for Lexer<'a> {
                 '/' => MultiCharToken::Slash,
                 '"' => MultiCharToken::String,
                 '0'..='9' => MultiCharToken::Number,
+                '_' | 'a'..='z' | 'A'..='Z' => MultiCharToken::Identifier,
                 ch if ch.is_whitespace() => continue,
                 ch => {
                     // let a = miette::miette!(
@@ -300,6 +302,17 @@ impl<'a> Iterator for Lexer<'a> {
                     };
 
                     return token_item(Token::new(TokenKind::Number(parsed_number), lexeme));
+                }
+                MultiCharToken::Identifier => {
+                    let non_ident_pos = origin_rest
+                        .find(|ch| !matches!(ch, '_' | '0'..='9' | 'a'..='z' | 'A'..='Z'))
+                        .unwrap_or(origin_rest.len());
+                    let lexeme = &origin_rest[..non_ident_pos];
+                    let extra_bytes = lexeme.len() - ch.len_utf8();
+                    self.byte_offset += extra_bytes;
+                    self.rest = &self.rest[extra_bytes..];
+
+                    return token_item(Token::new(TokenKind::Identifier, lexeme));
                 }
             }
         }
