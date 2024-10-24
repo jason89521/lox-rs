@@ -2,7 +2,7 @@ use crate::{Lexer, TokenKind};
 
 pub enum Expr<'a> {
     LiteralExpr(LiteralExpr<'a>),
-    // BraceExpr(Box<Expr<'a>>),
+    ParenExpr(Box<Expr<'a>>),
     // UnaryExpr {
     //     op: &'a str,
     //     expr: Box<Expr<'a>>,
@@ -18,11 +18,12 @@ impl std::fmt::Display for Expr<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::LiteralExpr(literal) => write!(f, "{literal}"),
+            Expr::ParenExpr(expr) => write!(f, "(group {expr})"),
         }
     }
 }
 
-enum LiteralExpr<'a> {
+pub enum LiteralExpr<'a> {
     Number(f64),
     String(&'a str),
     Boolean(bool),
@@ -57,7 +58,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Expr<'a>, Box<dyn std::error::Error>> {
+    pub fn parse_expr(&mut self) -> Result<Expr<'a>, Box<dyn std::error::Error>> {
         let lhs = match self.lexer.next() {
             Some(token) => token?,
             None => return Ok(Expr::LiteralExpr(LiteralExpr::Nil)),
@@ -69,6 +70,11 @@ impl<'a> Parser<'a> {
             TokenKind::True => Expr::LiteralExpr(LiteralExpr::Boolean(true)),
             TokenKind::False => Expr::LiteralExpr(LiteralExpr::Boolean(false)),
             TokenKind::Nil => Expr::LiteralExpr(LiteralExpr::Nil),
+            TokenKind::LeftParen => {
+                let expr = self.parse_expr()?;
+                self.lexer.expect(TokenKind::RightParen)?;
+                Expr::ParenExpr(Box::new(expr))
+            }
             _ => {
                 unimplemented!()
             }

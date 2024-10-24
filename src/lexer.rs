@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use miette::SourceSpan;
 use std::fmt::Display;
 
@@ -38,7 +39,7 @@ impl LexerError {
     }
 }
 
-#[derive(Debug, strum::Display, Clone, Copy)]
+#[derive(Debug, strum::Display, Clone, Copy, PartialEq)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum TokenKind {
     // Single-character tokens.
@@ -160,6 +161,25 @@ impl<'a> Lexer<'a> {
         }
 
         self.peeked.as_ref()
+    }
+
+    pub fn expect(&mut self, kind: TokenKind) -> anyhow::Result<()> {
+        if let Some(Ok(token)) = self.next() {
+            if token.kind != kind {
+                return Err(anyhow!(
+                    "Unexpected token kind, expected: {}, found: {}",
+                    kind,
+                    token.kind,
+                ));
+            } else {
+                return Ok(());
+            }
+        }
+
+        return Err(anyhow!(
+            "Expect token kind: {}, but there is no token",
+            kind
+        ));
     }
 }
 
