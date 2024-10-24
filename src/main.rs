@@ -24,17 +24,17 @@ enum Commands {
         // The lox file
         filename: PathBuf,
     },
+
+    Evaluate {
+        filename: PathBuf,
+    },
 }
 
 fn main() {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Tokenize { filename } => {
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {:?}", filename);
-                String::new()
-            });
-
+            let file_contents = read_file(filename);
             let mut lexer = codecrafters_interpreter::Lexer::new(&file_contents);
             for token in &mut lexer {
                 match token {
@@ -50,13 +50,9 @@ fn main() {
             }
         }
         Commands::Parse { filename } => {
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {:?}", filename);
-                String::new()
-            });
-
-            let mut parse = codecrafters_interpreter::Parser::new(&file_contents);
-            match parse.parse_expr(0) {
+            let file_contents = read_file(filename);
+            let mut parser = codecrafters_interpreter::Parser::new(&file_contents);
+            match parser.parse_expr(0) {
                 Ok(tree) => {
                     println!("{tree}");
                 }
@@ -66,5 +62,25 @@ fn main() {
                 }
             }
         }
+        Commands::Evaluate { filename } => {
+            let file_contents = read_file(filename);
+            let mut runner = codecrafters_interpreter::Runner::new(&file_contents);
+            match runner.run() {
+                Ok(_) => {
+                    //
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    exit(65)
+                }
+            }
+        }
     }
+}
+
+fn read_file(filename: &PathBuf) -> String {
+    fs::read_to_string(filename).unwrap_or_else(|_| {
+        eprintln!("Failed to read file {:?}", filename);
+        String::new()
+    })
 }
