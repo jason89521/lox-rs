@@ -34,7 +34,13 @@ impl std::fmt::Display for LiteralExpr<'_> {
         match self {
             LiteralExpr::Boolean(b) => write!(f, "{b}"),
             LiteralExpr::Nil => write!(f, "nil"),
-            LiteralExpr::Number(n) => write!(f, "{n}"),
+            LiteralExpr::Number(n) => {
+                if *n == n.trunc() {
+                    write!(f, "{n}.0")
+                } else {
+                    write!(f, "{n}")
+                }
+            }
             LiteralExpr::String(s) => write!(f, "{s}"),
         }
     }
