@@ -138,6 +138,7 @@ pub struct Lexer<'a> {
     source: &'a str,
     rest: &'a str,
     byte_offset: usize,
+    reach_end: bool,
     peeked: Option<Result<Token<'a>, LexerError>>,
 }
 
@@ -148,6 +149,7 @@ impl<'a> Lexer<'a> {
             source,
             rest: source,
             byte_offset: 0,
+            reach_end: false,
             peeked: None,
         }
     }
@@ -199,11 +201,11 @@ impl<'a> Iterator for Lexer<'a> {
             let mut chars = self.rest.chars();
             let ch = chars.next();
             if ch.is_none() {
-                return if self.byte_offset == self.source.len() {
-                    self.byte_offset += 1;
-                    Some(Ok(Token::new(TokenKind::Eof, "")))
-                } else {
+                return if self.reach_end {
                     None
+                } else {
+                    self.reach_end = true;
+                    Some(Ok(Token::new(TokenKind::Eof, "")))
                 };
             }
             let ch = ch.unwrap();

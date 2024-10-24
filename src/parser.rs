@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use crate::{Lexer, TokenKind};
 
+#[derive(PartialEq)]
 pub enum Operator {
     Plus,
     Minus,
@@ -164,6 +165,10 @@ impl<'a> Parser<'a> {
         Self {
             lexer: Lexer::new(&source_code),
         }
+    }
+
+    pub fn current_line(&self) -> usize {
+        self.lexer.current_line()
     }
 
     pub fn parse_expr(&mut self, min_bp: u8) -> anyhow::Result<Expr<'a>> {

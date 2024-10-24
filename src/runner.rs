@@ -4,6 +4,15 @@ use anyhow::Result;
 
 use crate::{Expr, LiteralExpr, Operator, Parser};
 
+#[derive(Debug, thiserror::Error)]
+pub enum RuntimeError {
+    #[error("Operand must be a {expected_operand}.\n[line {line}]")]
+    InvalidOperand {
+        line: usize,
+        expected_operand: &'static str,
+    },
+}
+
 pub struct Runner<'a> {
     parser: Parser<'a>,
 }
@@ -38,12 +47,12 @@ impl<'a> Runner<'a> {
                     },
                     Operator::Minus => match literal {
                         LiteralExpr::Number(n) => LiteralExpr::Number(-n),
-                        LiteralExpr::Nil => LiteralExpr::Boolean(true),
                         _ => {
-                            return Err(anyhow::anyhow!(
-                                "Unexpected literal with minus {}",
-                                literal
-                            ))
+                            return Err(RuntimeError::InvalidOperand {
+                                line: self.parser.current_line(),
+                                expected_operand: "number",
+                            }
+                            .into())
                         }
                     },
                     _ => unreachable!(""),
@@ -89,7 +98,14 @@ impl<'a> Runner<'a> {
                         Operator::BangEqual => return Ok(LiteralExpr::Boolean(a != b)),
                         _ => unimplemented!(),
                     },
-                    (LiteralExpr::Nil, LiteralExpr::Nil) => todo!(),
+                    (LiteralExpr::Nil, LiteralExpr::Nil) => todo!("Nil binary operator"),
+                    _ if matches!(op, Operator::BangEqual | Operator::EqualEqual) => {
+                        return Ok(LiteralExpr::Boolean(if op == Operator::BangEqual {
+                            true
+                        } else {
+                            false
+                        }))
+                    }
                     _ => return Err(anyhow::anyhow!("Mismatched type: {} and {}", lhs, rhs)),
                 }
             }

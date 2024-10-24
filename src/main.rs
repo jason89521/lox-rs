@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::exit;
 
 use clap::{Parser, Subcommand};
+use codecrafters_interpreter::RuntimeError;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -71,7 +72,11 @@ fn main() {
                 }
                 Err(e) => {
                     eprintln!("{e}");
-                    exit(65)
+                    if let Some(_) = e.downcast_ref::<RuntimeError>() {
+                        exit(70)
+                    } else {
+                        exit(65)
+                    }
                 }
             }
         }
