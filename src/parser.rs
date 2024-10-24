@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{Lexer, TokenKind};
 
 pub enum Operator {
@@ -101,7 +103,7 @@ impl std::fmt::Display for Expr<'_> {
 
 pub enum LiteralExpr<'a> {
     Number(f64),
-    String(&'a str),
+    String(Cow<'a, str>),
     Boolean(bool),
     Nil,
 }
@@ -116,8 +118,8 @@ impl Into<f64> for LiteralExpr<'_> {
     }
 }
 
-impl<'a> Into<&'a str> for LiteralExpr<'a> {
-    fn into(self) -> &'a str {
+impl<'a> Into<Cow<'a, str>> for LiteralExpr<'a> {
+    fn into(self) -> Cow<'a, str> {
         if let LiteralExpr::String(s) = self {
             s
         } else {
@@ -148,7 +150,7 @@ impl std::fmt::Display for LiteralExpr<'_> {
                     write!(f, "{n}")
                 }
             }
-            LiteralExpr::String(s) => write!(f, "{}", s.trim_matches('"')),
+            LiteralExpr::String(s) => write!(f, "{s}"),
         }
     }
 }
@@ -171,7 +173,9 @@ impl<'a> Parser<'a> {
         };
 
         let mut lhs_expr = match token.kind() {
-            TokenKind::String => Expr::LiteralExpr(LiteralExpr::String(token.lexeme())),
+            TokenKind::String => Expr::LiteralExpr(LiteralExpr::String(Cow::Borrowed(
+                token.lexeme().trim_matches('"'),
+            ))),
             TokenKind::Number(n) => Expr::LiteralExpr(LiteralExpr::Number(n)),
             TokenKind::True => Expr::LiteralExpr(LiteralExpr::Boolean(true)),
             TokenKind::False => Expr::LiteralExpr(LiteralExpr::Boolean(false)),

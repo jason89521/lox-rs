@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use anyhow::Result;
 
 use crate::{Expr, LiteralExpr, Operator, Parser};
@@ -67,6 +69,13 @@ impl<'a> Runner<'a> {
                         _ => unimplemented!(),
                     },
                     (LiteralExpr::String(a), LiteralExpr::String(b)) => match op {
+                        Operator::Plus => {
+                            return Ok(LiteralExpr::String(Cow::Owned(format!(
+                                "{}{}",
+                                a.trim_matches('"'),
+                                b.trim_matches('"'),
+                            ))));
+                        }
                         Operator::EqualEqual => return Ok(LiteralExpr::Boolean(a == b)),
                         Operator::BangEqual => return Ok(LiteralExpr::Boolean(a != b)),
                         _ => unimplemented!(),
