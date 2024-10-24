@@ -2,13 +2,13 @@ use miette::SourceSpan;
 use std::fmt::Display;
 
 #[derive(thiserror::Error, Debug)]
-pub struct LexerError<'a> {
-    source_code: &'a str,
+pub struct LexerError {
+    source_code: String,
     span: SourceSpan,
     kind: LexerErrorKind,
 }
 
-impl Display for LexerError<'_> {
+impl Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.kind)
     }
@@ -24,21 +24,21 @@ pub enum LexerErrorKind {
     InvalidNumber,
 }
 
-impl<'a> LexerError<'a> {
+impl LexerError {
     pub fn line(&self) -> usize {
         self.source_code[..=self.span.offset()].lines().count()
     }
 
-    pub fn new(kind: LexerErrorKind, span: SourceSpan, source_code: &'a str) -> Self {
+    pub fn new(kind: LexerErrorKind, span: SourceSpan, source_code: &str) -> Self {
         Self {
-            source_code,
+            source_code: source_code.to_string(),
             span,
             kind,
         }
     }
 }
 
-#[derive(Debug, strum::Display)]
+#[derive(Debug, strum::Display, Clone, Copy)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum TokenKind {
     // Single-character tokens.
@@ -99,6 +99,14 @@ impl<'a> Token<'a> {
     pub fn new(kind: TokenKind, lexeme: &'a str) -> Self {
         Self { kind, lexeme }
     }
+
+    pub fn kind(&self) -> TokenKind {
+        self.kind
+    }
+
+    pub fn lexeme(&self) -> &'a str {
+        self.lexeme
+    }
 }
 
 impl Display for Token<'_> {
@@ -128,6 +136,7 @@ pub struct Lexer<'a> {
     source: &'a str,
     rest: &'a str,
     byte_offset: usize,
+    peeked: Option<Result<Token<'a>, LexerError>>,
 }
 
 impl<'a> Lexer<'a> {
@@ -137,17 +146,30 @@ impl<'a> Lexer<'a> {
             source,
             rest: source,
             byte_offset: 0,
+            peeked: None,
         }
     }
 
     pub fn has_error(&self) -> bool {
         self.has_error
     }
+
+    pub fn peek(&mut self) -> Option<&Result<Token<'a>, LexerError>> {
+        if self.peeked.is_none() {
+            self.peeked = self.next();
+        }
+
+        self.peeked.as_ref()
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Result<Token<'a>, LexerError<'a>>;
+    type Item = Result<Token<'a>, LexerError>;
     fn next(&mut self) -> Option<Self::Item> {
+        if let Some(token) = self.peeked.take() {
+            return Some(token);
+        }
+
         loop {
             let mut chars = self.rest.chars();
             let ch = chars.next();

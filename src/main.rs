@@ -1,22 +1,37 @@
-use std::env;
 use std::fs;
+use std::path::PathBuf;
 use std::process::exit;
 
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Tokenize the source code
+    Tokenize {
+        /// The lox file
+        filename: PathBuf,
+    },
+
+    /// Parse the source code
+    Parse {
+        // The lox file
+        filename: PathBuf,
+    },
+}
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    if args.len() < 3 {
-        eprintln!("Usage: {} tokenize <filename>", args[0]);
-        return;
-    }
-
-    let command = &args[1];
-    let filename = &args[2];
-
-    match command.as_str() {
-        "tokenize" => {
+    let cli = Cli::parse();
+    match &cli.command {
+        Commands::Tokenize { filename } => {
             let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {}", filename);
+                eprintln!("Failed to read file {:?}", filename);
                 String::new()
             });
 
@@ -34,9 +49,16 @@ fn main() {
                 exit(65)
             }
         }
-        _ => {
-            eprintln!("Unknown command: {}", command);
-            return;
+        Commands::Parse { filename } => {
+            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
+                eprintln!("Failed to read file {:?}", filename);
+                String::new()
+            });
+
+            let mut parse = codecrafters_interpreter::Parser::new(&file_contents);
+            if let Ok(tree) = parse.parse() {
+                println!("{tree}");
+            }
         }
     }
 }
