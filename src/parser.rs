@@ -3,10 +3,7 @@ use crate::{Lexer, TokenKind};
 pub enum Expr<'a> {
     LiteralExpr(LiteralExpr<'a>),
     ParenExpr(Box<Expr<'a>>),
-    // UnaryExpr {
-    //     op: &'a str,
-    //     expr: Box<Expr<'a>>,
-    // },
+    UnaryExpr { op: &'a str, expr: Box<Expr<'a>> },
     // BinaryExpr {
     //     left_expr: Box<Expr<'a>>,
     //     op: &'a str,
@@ -19,6 +16,7 @@ impl std::fmt::Display for Expr<'_> {
         match self {
             Expr::LiteralExpr(literal) => write!(f, "{literal}"),
             Expr::ParenExpr(expr) => write!(f, "(group {expr})"),
+            Expr::UnaryExpr { op, expr } => write!(f, "({op} {expr})"),
         }
     }
 }
@@ -75,6 +73,10 @@ impl<'a> Parser<'a> {
                 self.lexer.expect(TokenKind::RightParen)?;
                 Expr::ParenExpr(Box::new(expr))
             }
+            TokenKind::Minus | TokenKind::Bang => Expr::UnaryExpr {
+                op: &lhs.lexeme(),
+                expr: Box::new(self.parse_expr()?),
+            },
             _ => {
                 unimplemented!()
             }
