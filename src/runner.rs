@@ -26,6 +26,7 @@ impl<'a> Runner<'a> {
 
     fn evaluate(&self, expr: Expr<'a>) -> Result<LiteralExpr<'a>> {
         match expr {
+            Expr::ParenExpr(expr) => return self.evaluate(*expr),
             Expr::BinaryExpr {
                 lhs_expr,
                 op,
