@@ -26,6 +26,27 @@ impl<'a> Runner<'a> {
 
     fn evaluate(&self, expr: Expr<'a>) -> Result<LiteralExpr<'a>> {
         match expr {
+            Expr::UnaryExpr { op, expr } => {
+                let literal = self.evaluate(*expr)?;
+                return Ok(match op {
+                    Operator::Bang => match literal {
+                        LiteralExpr::Boolean(b) => LiteralExpr::Boolean(!b),
+                        LiteralExpr::Nil => LiteralExpr::Boolean(true),
+                        _ => LiteralExpr::Boolean(false),
+                    },
+                    Operator::Minus => match literal {
+                        LiteralExpr::Number(n) => LiteralExpr::Number(-n),
+                        LiteralExpr::Nil => LiteralExpr::Boolean(true),
+                        _ => {
+                            return Err(anyhow::anyhow!(
+                                "Unexpected literal with minus {}",
+                                literal
+                            ))
+                        }
+                    },
+                    _ => unreachable!(""),
+                });
+            }
             Expr::ParenExpr(expr) => return self.evaluate(*expr),
             Expr::BinaryExpr {
                 lhs_expr,
@@ -60,7 +81,6 @@ impl<'a> Runner<'a> {
                 }
             }
             Expr::LiteralExpr(expr) => return Ok(expr),
-            _ => unimplemented!(),
         };
     }
 }
