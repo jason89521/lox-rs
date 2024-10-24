@@ -82,11 +82,10 @@ impl<'a> Parser<'a> {
                 Expr::ParenExpr(Box::new(expr))
             }
             TokenKind::Minus | TokenKind::Bang => {
-                let op = token.lexeme();
-                let (_, r_bp) = prefix_binding_power(op);
+                let (_, r_bp) = prefix_binding_power(token.kind());
                 let rhs_expr = self.parse_expr(r_bp)?;
                 Expr::UnaryExpr {
-                    op,
+                    op: &token.lexeme(),
                     expr: Box::new(rhs_expr),
                 }
             }
@@ -110,9 +109,18 @@ impl<'a> Parser<'a> {
             };
             match op.kind() {
                 TokenKind::RightParen => break,
-                TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash => {
+                TokenKind::Plus
+                | TokenKind::Minus
+                | TokenKind::Star
+                | TokenKind::Slash
+                | TokenKind::Less
+                | TokenKind::LessEqual
+                | TokenKind::Greater
+                | TokenKind::GreaterEqual
+                | TokenKind::BangEqual
+                | TokenKind::EqualEqual => {
                     let lexeme = op.lexeme();
-                    let (l_bp, r_bp) = infix_binding_power(lexeme);
+                    let (l_bp, r_bp) = infix_binding_power(op.kind());
                     if l_bp < min_bp {
                         break;
                     }
@@ -136,17 +144,23 @@ impl<'a> Parser<'a> {
     }
 }
 
-fn infix_binding_power(op: &str) -> (u8, u8) {
+fn infix_binding_power(op: TokenKind) -> (u8, u8) {
     match op {
-        "+" | "-" => (1, 2),
-        "*" | "/" => (3, 4),
+        TokenKind::Less
+        | TokenKind::LessEqual
+        | TokenKind::Greater
+        | TokenKind::GreaterEqual
+        | TokenKind::BangEqual
+        | TokenKind::EqualEqual => (1, 2),
+        TokenKind::Plus | TokenKind::Minus => (3, 4),
+        TokenKind::Star | TokenKind::Slash => (5, 6),
         _ => unreachable!(),
     }
 }
 
-fn prefix_binding_power(op: &str) -> ((), u8) {
+fn prefix_binding_power(op: TokenKind) -> ((), u8) {
     match op {
-        "-" | "!" => ((), 5),
+        TokenKind::Minus | TokenKind::Bang => ((), 7),
         _ => unreachable!(),
     }
 }
