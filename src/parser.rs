@@ -90,7 +90,11 @@ impl<'a> Parser<'a> {
                 }
             }
             _ => {
-                unimplemented!()
+                return Err(anyhow::anyhow!(
+                    "[line {}] Error at '{}': Expect expression.",
+                    self.lexer.current_line(),
+                    token.lexeme()
+                ))
             }
         };
 

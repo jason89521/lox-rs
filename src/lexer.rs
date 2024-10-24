@@ -182,6 +182,10 @@ impl<'a> Lexer<'a> {
             kind
         ));
     }
+
+    pub fn current_line(&self) -> usize {
+        self.source[..self.byte_offset].lines().count()
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
