@@ -65,13 +65,13 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expr(&mut self, min_bp: u8) -> anyhow::Result<Expr<'a>> {
-        let lhs = match self.lexer.next() {
+        let token = match self.lexer.next() {
             Some(token) => token?,
             None => return Ok(Expr::LiteralExpr(LiteralExpr::Nil)),
         };
 
-        let mut lhs_expr = match lhs.kind() {
-            TokenKind::String => Expr::LiteralExpr(LiteralExpr::String(lhs.lexeme())),
+        let mut lhs_expr = match token.kind() {
+            TokenKind::String => Expr::LiteralExpr(LiteralExpr::String(token.lexeme())),
             TokenKind::Number(n) => Expr::LiteralExpr(LiteralExpr::Number(n)),
             TokenKind::True => Expr::LiteralExpr(LiteralExpr::Boolean(true)),
             TokenKind::False => Expr::LiteralExpr(LiteralExpr::Boolean(false)),
@@ -81,10 +81,15 @@ impl<'a> Parser<'a> {
                 self.lexer.expect(TokenKind::RightParen)?;
                 Expr::ParenExpr(Box::new(expr))
             }
-            TokenKind::Minus | TokenKind::Bang => Expr::UnaryExpr {
-                op: &lhs.lexeme(),
-                expr: Box::new(self.parse_expr(min_bp)?),
-            },
+            TokenKind::Minus | TokenKind::Bang => {
+                let op = token.lexeme();
+                let (_, r_bp) = prefix_binding_power(op);
+                let rhs_expr = self.parse_expr(r_bp)?;
+                Expr::UnaryExpr {
+                    op,
+                    expr: Box::new(rhs_expr),
+                }
+            }
             _ => {
                 unimplemented!()
             }
@@ -135,6 +140,13 @@ fn infix_binding_power(op: &str) -> (u8, u8) {
     match op {
         "+" | "-" => (1, 2),
         "*" | "/" => (3, 4),
+        _ => unreachable!(),
+    }
+}
+
+fn prefix_binding_power(op: &str) -> ((), u8) {
+    match op {
+        "-" | "!" => ((), 5),
         _ => unreachable!(),
     }
 }
