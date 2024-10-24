@@ -56,7 +56,7 @@ fn main() {
             });
 
             let mut parse = codecrafters_interpreter::Parser::new(&file_contents);
-            if let Ok(tree) = parse.parse_expr() {
+            if let Ok(tree) = parse.parse_expr(0) {
                 println!("{tree}");
             }
         }

@@ -91,6 +91,7 @@ pub enum TokenKind {
     Eof,
 }
 
+#[derive(Debug)]
 pub struct Token<'a> {
     kind: TokenKind,
     lexeme: &'a str,
