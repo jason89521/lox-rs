@@ -41,7 +41,7 @@ impl std::fmt::Display for LiteralExpr<'_> {
                     write!(f, "{n}")
                 }
             }
-            LiteralExpr::String(s) => write!(f, "{s}"),
+            LiteralExpr::String(s) => write!(f, "{}", s.trim_matches('"')),
         }
     }
 }
