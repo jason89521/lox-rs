@@ -6,10 +6,11 @@ use crate::{Expr, LiteralExpr, Operator, Parser};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
-    #[error("Operand must be a {expected_operand}.\n[line {line}]")]
+    #[error("Operand{0} must be a {expected_operand}{0}.\n[line {line}]", if *binary {"s"} else {""})]
     InvalidOperand {
         line: usize,
         expected_operand: &'static str,
+        binary: bool,
     },
 }
 
@@ -51,6 +52,7 @@ impl<'a> Runner<'a> {
                             return Err(RuntimeError::InvalidOperand {
                                 line: self.parser.current_line(),
                                 expected_operand: "number",
+                                binary: false,
                             }
                             .into())
                         }
@@ -81,30 +83,61 @@ impl<'a> Runner<'a> {
                         Operator::BangEqual => return Ok(LiteralExpr::Boolean(a != b)),
                         _ => unimplemented!(),
                     },
-                    (LiteralExpr::String(a), LiteralExpr::String(b)) => match op {
-                        Operator::Plus => {
-                            return Ok(LiteralExpr::String(Cow::Owned(format!(
-                                "{}{}",
-                                a.trim_matches('"'),
-                                b.trim_matches('"'),
-                            ))));
+                    (LiteralExpr::String(a), LiteralExpr::String(b))
+                        if matches!(
+                            op,
+                            Operator::Plus | Operator::EqualEqual | Operator::BangEqual
+                        ) =>
+                    {
+                        match op {
+                            Operator::Plus => {
+                                return Ok(LiteralExpr::String(Cow::Owned(format!(
+                                    "{}{}",
+                                    a.trim_matches('"'),
+                                    b.trim_matches('"'),
+                                ))));
+                            }
+                            Operator::EqualEqual => return Ok(LiteralExpr::Boolean(a == b)),
+                            Operator::BangEqual => return Ok(LiteralExpr::Boolean(a != b)),
+                            _ => unimplemented!(),
                         }
-                        Operator::EqualEqual => return Ok(LiteralExpr::Boolean(a == b)),
-                        Operator::BangEqual => return Ok(LiteralExpr::Boolean(a != b)),
-                        _ => unimplemented!(),
-                    },
-                    (LiteralExpr::Boolean(a), LiteralExpr::Boolean(b)) => match op {
-                        Operator::EqualEqual => return Ok(LiteralExpr::Boolean(a == b)),
-                        Operator::BangEqual => return Ok(LiteralExpr::Boolean(a != b)),
-                        _ => unimplemented!(),
-                    },
-                    (LiteralExpr::Nil, LiteralExpr::Nil) => todo!("Nil binary operator"),
+                    }
+                    (LiteralExpr::Boolean(a), LiteralExpr::Boolean(b))
+                        if matches!(op, Operator::EqualEqual | Operator::BangEqual) =>
+                    {
+                        match op {
+                            Operator::EqualEqual => return Ok(LiteralExpr::Boolean(a == b)),
+                            Operator::BangEqual => return Ok(LiteralExpr::Boolean(a != b)),
+                            _ => unimplemented!(),
+                        }
+                    }
+                    (LiteralExpr::Nil, LiteralExpr::Nil)
+                        if matches!(op, Operator::BangEqual | Operator::EqualEqual) =>
+                    {
+                        return Ok(LiteralExpr::Boolean(if op == Operator::BangEqual {
+                            false
+                        } else {
+                            true
+                        }))
+                    }
                     _ if matches!(op, Operator::BangEqual | Operator::EqualEqual) => {
                         return Ok(LiteralExpr::Boolean(if op == Operator::BangEqual {
                             true
                         } else {
                             false
                         }))
+                    }
+                    _ if matches!(
+                        op,
+                        Operator::Plus | Operator::Minus | Operator::Star | Operator::Slash
+                    ) =>
+                    {
+                        return Err(RuntimeError::InvalidOperand {
+                            line: self.parser.current_line(),
+                            expected_operand: "number",
+                            binary: true,
+                        }
+                        .into())
                     }
                     _ => return Err(anyhow::anyhow!("Mismatched type: {} and {}", lhs, rhs)),
                 }
