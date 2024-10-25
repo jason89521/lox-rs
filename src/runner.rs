@@ -129,7 +129,14 @@ impl<'a> Runner<'a> {
                     }
                     _ if matches!(
                         op,
-                        Operator::Plus | Operator::Minus | Operator::Star | Operator::Slash
+                        Operator::Plus
+                            | Operator::Minus
+                            | Operator::Star
+                            | Operator::Slash
+                            | Operator::Less
+                            | Operator::LessEqual
+                            | Operator::Greater
+                            | Operator::GreaterEqual
                     ) =>
                     {
                         return Err(RuntimeError::InvalidOperand {
