@@ -1,207 +1,141 @@
-use std::borrow::Cow;
-
 use crate::{Lexer, TokenKind};
 
-#[derive(PartialEq)]
-pub enum Operator {
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    Less,
-    LessEqual,
-    Greater,
-    GreaterEqual,
-    EqualEqual,
-    BangEqual,
-    Bang,
+mod expr;
+mod operator;
+mod statement;
+
+pub use expr::{Expr, LiteralExprKind};
+pub use operator::Operator;
+pub use statement::Statement;
+
+#[derive(Debug)]
+pub enum AstKind<'a> {
+    Program { body: Vec<AstKind<'a>> },
+    Statement(Statement<'a>),
+    Expr(Expr<'a>),
+    Eof,
 }
 
-impl std::fmt::Display for Operator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Operator::Plus => write!(f, "+"),
-            Operator::Minus => write!(f, "-"),
-            Operator::Star => write!(f, "*"),
-            Operator::Slash => write!(f, "/"),
-            Operator::Less => write!(f, "<"),
-            Operator::LessEqual => write!(f, "<="),
-            Operator::Greater => write!(f, ">"),
-            Operator::GreaterEqual => write!(f, ">="),
-            Operator::EqualEqual => write!(f, "=="),
-            Operator::BangEqual => write!(f, "!="),
-            Operator::Bang => write!(f, "!"),
+impl<'a> AstKind<'a> {
+    pub fn expect_expr(self) -> Expr<'a> {
+        if let AstKind::Expr(expr) = self {
+            return expr;
         }
+        panic!("Expect expr but found :{:?}", self)
     }
 }
-
-impl Into<Operator> for &str {
-    fn into(self) -> Operator {
-        match self {
-            "+" => Operator::Plus,
-            "-" => Operator::Minus,
-            "*" => Operator::Star,
-            "/" => Operator::Slash,
-            "<" => Operator::Less,
-            ">" => Operator::Greater,
-            "<=" => Operator::LessEqual,
-            ">=" => Operator::GreaterEqual,
-            "!" => Operator::Bang,
-            "!=" => Operator::BangEqual,
-            "==" => Operator::EqualEqual,
-            _ => panic!("Unknown operator {self}"),
-        }
-    }
-}
-
-impl Into<Operator> for TokenKind {
-    fn into(self) -> Operator {
-        match self {
-            TokenKind::Plus => Operator::Plus,
-            TokenKind::Minus => Operator::Minus,
-            TokenKind::Star => Operator::Star,
-            TokenKind::Slash => Operator::Slash,
-            TokenKind::Less => Operator::Less,
-            TokenKind::Greater => Operator::Greater,
-            TokenKind::LessEqual => Operator::LessEqual,
-            TokenKind::GreaterEqual => Operator::GreaterEqual,
-            TokenKind::Bang => Operator::Bang,
-            TokenKind::BangEqual => Operator::BangEqual,
-            TokenKind::EqualEqual => Operator::EqualEqual,
-            _ => panic!("Unknown operator {self}"),
-        }
-    }
-}
-
-pub enum Expr<'a> {
-    LiteralExpr(LiteralExpr<'a>),
-    ParenExpr(Box<Expr<'a>>),
-    UnaryExpr {
-        op: Operator,
-        expr: Box<Expr<'a>>,
-    },
-    BinaryExpr {
-        lhs_expr: Box<Expr<'a>>,
-        op: Operator,
-        rhs_expr: Box<Expr<'a>>,
-    },
-}
-
-impl std::fmt::Display for Expr<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Expr::LiteralExpr(literal) => write!(f, "{literal}"),
-            Expr::ParenExpr(expr) => write!(f, "(group {expr})"),
-            Expr::UnaryExpr { op, expr } => write!(f, "({op} {expr})"),
-            Expr::BinaryExpr {
-                lhs_expr,
-                op,
-                rhs_expr,
-            } => write!(f, "({op} {lhs_expr} {rhs_expr})"),
-        }
-    }
-}
-
-pub enum LiteralExpr<'a> {
-    Number(f64),
-    String(Cow<'a, str>),
-    Boolean(bool),
-    Nil,
-}
-
-impl Into<f64> for LiteralExpr<'_> {
-    fn into(self) -> f64 {
-        if let LiteralExpr::Number(n) = self {
-            n
-        } else {
-            panic!("Cannot turn {} to f64.", self)
-        }
-    }
-}
-
-impl<'a> Into<Cow<'a, str>> for LiteralExpr<'a> {
-    fn into(self) -> Cow<'a, str> {
-        if let LiteralExpr::String(s) = self {
-            s
-        } else {
-            panic!("Cannot turn {self} to &str.")
-        }
-    }
-}
-
-impl Into<bool> for LiteralExpr<'_> {
-    fn into(self) -> bool {
-        if let LiteralExpr::Boolean(b) = self {
-            b
-        } else {
-            panic!("Cannot turn {self} to bool.")
-        }
-    }
-}
-
-impl std::fmt::Display for LiteralExpr<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LiteralExpr::Boolean(b) => write!(f, "{b}"),
-            LiteralExpr::Nil => write!(f, "nil"),
-            LiteralExpr::Number(n) => {
-                if *n == n.trunc() {
-                    write!(f, "{n}.0")
-                } else {
-                    write!(f, "{n}")
-                }
-            }
-            LiteralExpr::String(s) => write!(f, "{s}"),
-        }
-    }
-}
-
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
+    source_code: &'a str,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(source_code: &'a str) -> Self {
         Self {
             lexer: Lexer::new(&source_code),
+            source_code,
         }
     }
 
-    pub fn current_line(&self) -> usize {
-        self.lexer.current_line()
+    pub fn parse(&mut self) -> anyhow::Result<AstKind<'a>> {
+        let mut body = vec![];
+        while self.lexer.peek().is_some() {
+            body.push(self.parse_statement(0)?);
+        }
+
+        Ok(AstKind::Program { body })
+    }
+
+    pub fn parse_statement(&mut self, _min_bp: u8) -> anyhow::Result<AstKind<'a>> {
+        let token = match self.lexer.peek() {
+            Some(Ok(token)) => token,
+            Some(Err(e)) => {
+                let e = e.clone();
+                self.lexer.next();
+                return Err((e.clone()).into());
+            }
+            None => {
+                return Ok(AstKind::Expr(Expr::LiteralExpr {
+                    kind: LiteralExprKind::Nil,
+                    span: (self.source_code.len(), 0),
+                }))
+            }
+        };
+
+        match token.kind() {
+            TokenKind::Print => {
+                let token = self.lexer.next().unwrap().unwrap();
+                let expr = self.parse_expr(0)?;
+                let semicolon = self
+                    .lexer
+                    .expect_if(|kind| matches!(kind, TokenKind::Semicolon | TokenKind::Eof))?;
+                let span = (token.span().0, semicolon.span().1);
+                return Ok(AstKind::Statement(Statement::PrintStmt { span, expr }));
+            }
+            TokenKind::Eof => {
+                self.lexer.next();
+                return Ok(AstKind::Eof);
+            }
+            _ => {}
+        }
+        unimplemented!()
     }
 
     pub fn parse_expr(&mut self, min_bp: u8) -> anyhow::Result<Expr<'a>> {
         let token = match self.lexer.next() {
             Some(token) => token?,
-            None => return Ok(Expr::LiteralExpr(LiteralExpr::Nil)),
+            None => {
+                return Ok(Expr::LiteralExpr {
+                    kind: LiteralExprKind::Nil,
+                    span: (self.source_code.len(), self.source_code.len()),
+                })
+            }
         };
 
         let mut lhs_expr = match token.kind() {
-            TokenKind::String => Expr::LiteralExpr(LiteralExpr::String(Cow::Borrowed(
-                token.lexeme().trim_matches('"'),
-            ))),
-            TokenKind::Number(n) => Expr::LiteralExpr(LiteralExpr::Number(n)),
-            TokenKind::True => Expr::LiteralExpr(LiteralExpr::Boolean(true)),
-            TokenKind::False => Expr::LiteralExpr(LiteralExpr::Boolean(false)),
-            TokenKind::Nil => Expr::LiteralExpr(LiteralExpr::Nil),
+            TokenKind::String => Expr::LiteralExpr {
+                kind: LiteralExprKind::String(token.lexeme().trim_matches('"')),
+                span: token.span(),
+            },
+            TokenKind::Number(n) => Expr::LiteralExpr {
+                kind: LiteralExprKind::Number(n),
+                span: token.span(),
+            },
+            TokenKind::True => Expr::LiteralExpr {
+                kind: LiteralExprKind::Boolean(true),
+                span: token.span(),
+            },
+            TokenKind::False => Expr::LiteralExpr {
+                kind: LiteralExprKind::Boolean(false),
+                span: token.span(),
+            },
+            TokenKind::Nil => Expr::LiteralExpr {
+                kind: LiteralExprKind::Nil,
+                span: token.span(),
+            },
             TokenKind::LeftParen => {
                 let expr = self.parse_expr(0)?;
-                self.lexer.expect(TokenKind::RightParen)?;
-                Expr::ParenExpr(Box::new(expr))
+                let right_paren_span = self.lexer.expect(TokenKind::RightParen)?.span();
+                let span = (token.span().0, right_paren_span.1);
+                Expr::ParenExpr {
+                    expr: Box::new(expr),
+                    span,
+                }
             }
             TokenKind::Minus | TokenKind::Bang => {
                 let (_, r_bp) = prefix_binding_power(token.kind().into());
                 let rhs_expr = self.parse_expr(r_bp)?;
+                let span = (token.span().0, rhs_expr.span().1);
                 Expr::UnaryExpr {
                     op: token.lexeme().into(),
                     expr: Box::new(rhs_expr),
+                    span,
                 }
             }
             _ => {
                 return Err(anyhow::anyhow!(
                     "[line {}] Error at '{}': Expect expression.",
-                    self.lexer.current_line(),
+                    token.line(self.source_code),
                     token.lexeme()
                 ))
             }
@@ -239,13 +173,15 @@ impl<'a> Parser<'a> {
                     }
                     self.lexer.next();
                     let rhs_expr = self.parse_expr(r_bp)?;
+                    let span = (lhs_expr.span().0, rhs_expr.span().1);
                     lhs_expr = Expr::BinaryExpr {
-                        lhs_expr: Box::new(lhs_expr),
                         op: lexeme.into(),
+                        lhs_expr: Box::new(lhs_expr),
                         rhs_expr: Box::new(rhs_expr),
+                        span,
                     }
                 }
-                TokenKind::Eof => break,
+                TokenKind::Eof | TokenKind::Semicolon => break,
                 token => {
                     eprintln!("kind: {token}");
                     unimplemented!()
@@ -264,16 +200,17 @@ fn infix_binding_power(op: Operator) -> (u8, u8) {
         | Operator::Greater
         | Operator::GreaterEqual
         | Operator::BangEqual
-        | Operator::EqualEqual => (1, 2),
-        Operator::Plus | Operator::Minus => (3, 4),
-        Operator::Star | Operator::Slash => (5, 6),
+        | Operator::EqualEqual => (11, 12),
+        Operator::Plus | Operator::Minus => (13, 14),
+        Operator::Star | Operator::Slash => (15, 16),
         _ => unreachable!(),
     }
 }
 
 fn prefix_binding_power(op: Operator) -> ((), u8) {
     match op {
-        Operator::Minus | Operator::Bang => ((), 7),
+        Operator::Print => ((), 1),
+        Operator::Minus | Operator::Bang => ((), 17),
         _ => unreachable!(),
     }
 }

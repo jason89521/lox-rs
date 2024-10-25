@@ -1,7 +1,7 @@
+mod interpreter;
 mod lexer;
 mod parser;
-mod runner;
 
+pub use interpreter::*;
 pub use lexer::*;
 pub use parser::*;
-pub use runner::*;

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::exit;
 
 use clap::{Parser, Subcommand};
-use codecrafters_interpreter::RuntimeError;
+use codecrafters_interpreter::*;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -29,14 +29,18 @@ enum Commands {
     Evaluate {
         filename: PathBuf,
     },
+
+    Run {
+        filename: PathBuf,
+    },
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Tokenize { filename } => {
             let file_contents = read_file(filename);
-            let mut lexer = codecrafters_interpreter::Lexer::new(&file_contents);
+            let mut lexer = Lexer::new(&file_contents);
             for token in &mut lexer {
                 match token {
                     Ok(token) => println!("{}", token),
@@ -65,8 +69,8 @@ fn main() {
         }
         Commands::Evaluate { filename } => {
             let file_contents = read_file(filename);
-            let mut runner = codecrafters_interpreter::Runner::new(&file_contents);
-            match runner.run() {
+            let mut interpreter = Interpreter::new(&file_contents);
+            match interpreter.evaluate() {
                 Ok(_) => {
                     //
                 }
@@ -80,7 +84,26 @@ fn main() {
                 }
             }
         }
+        Commands::Run { filename } => {
+            let file_contents = read_file(filename);
+            let mut parser = codecrafters_interpreter::Parser::new(&file_contents);
+            match parser.parse() {
+                Ok(ast) => {
+                    Interpreter::eval(ast)?;
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    if let Some(_) = e.downcast_ref::<RuntimeError>() {
+                        exit(70)
+                    } else {
+                        exit(65)
+                    }
+                }
+            }
+        }
     }
+
+    Ok(())
 }
 
 fn read_file(filename: &PathBuf) -> String {
