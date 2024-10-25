@@ -89,7 +89,13 @@ fn main() -> anyhow::Result<()> {
             let mut parser = codecrafters_interpreter::Parser::new(&file_contents);
             match parser.parse() {
                 Ok(ast) => {
-                    Interpreter::eval(ast)?;
+                    if let Err(e) = Interpreter::eval(ast) {
+                        if let Some(_) = e.downcast_ref::<RuntimeError>() {
+                            exit(70)
+                        } else {
+                            exit(65)
+                        }
+                    }
                 }
                 Err(e) => {
                     eprintln!("{e}");

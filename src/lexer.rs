@@ -229,7 +229,7 @@ impl<'a> Iterator for Lexer<'a> {
                     Some(Ok(Token::new(
                         TokenKind::Eof,
                         "",
-                        (self.source.len(), self.source.len()),
+                        (self.source.len() - 1, self.source.len() - 1),
                     )))
                 };
             }

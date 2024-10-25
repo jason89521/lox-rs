@@ -63,9 +63,11 @@ impl<'a> Interpreter<'a> {
                     let value = Self::evaluate_expr(expr)?;
                     println!("{value}");
                 }
-                Statement::ExprStmt { span, expr } => todo!(),
+                Statement::ExprStmt { span, expr } => {
+                    Self::evaluate_expr(expr)?;
+                }
             },
-            AstKind::Expr(expr) => todo!(),
+            AstKind::Expr(expr) => return Ok(()),
             AstKind::Eof => return Ok(()),
         }
 

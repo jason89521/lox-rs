@@ -76,9 +76,17 @@ impl<'a> Parser<'a> {
                 self.lexer.next();
                 return Ok(AstKind::Eof);
             }
-            _ => {}
+            _ => {
+                let expr = self.parse_expr(0)?;
+                let semicolon = self
+                    .lexer
+                    .expect_if(|kind| matches!(kind, TokenKind::Semicolon | TokenKind::Eof))?;
+                let span = (expr.span().0, semicolon.span().1);
+                let stat = Statement::ExprStmt { span, expr };
+
+                return Ok(AstKind::Statement(stat));
+            }
         }
-        unimplemented!()
     }
 
     pub fn parse_expr(&mut self, min_bp: u8) -> anyhow::Result<Expr<'a>> {
