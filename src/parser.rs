@@ -6,17 +6,22 @@ mod operator;
 mod statement;
 
 pub use declaration::Declaration;
+use declaration::VarDeclaration;
+use expression::IdentifierExpression;
 pub use expression::{
     BinaryExpression, Expression, LiteralExpression, LiteralKind, ParenExpression, UnaryExpression,
 };
 pub use operator::Operator;
 use span::GetSpan;
 pub use statement::Statement;
+use statement::{ExpressionStatement, PrintStatement};
 
 #[derive(Debug)]
 pub enum AstKind<'a> {
     Program { body: Vec<AstKind<'a>> },
     Statement(Statement<'a>),
+    Expression(Expression<'a>),
+    Declaration(Declaration<'a>),
     Eof,
 }
 
@@ -48,7 +53,7 @@ impl<'a> Parser<'a> {
             Some(Err(e)) => {
                 let e = e.clone();
                 self.lexer.next();
-                return Err((e.clone()).into());
+                return Err(e.into());
             }
             None => return Ok(AstKind::Eof),
         };
@@ -61,7 +66,9 @@ impl<'a> Parser<'a> {
                     .lexer
                     .expect_if(|kind| matches!(kind, TokenKind::Semicolon | TokenKind::Eof))?;
                 let span = (token.span().start, semicolon.span().end).into();
-                return Ok(AstKind::Statement(Statement::PrintStmt { span, expr }));
+                return Ok(AstKind::Statement(Statement::PrintStatement(
+                    PrintStatement::new(expr, span),
+                )));
             }
             TokenKind::Eof => {
                 self.lexer.next();
@@ -69,13 +76,59 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Var => {
                 let var = self.lexer.next().unwrap().unwrap();
-                unimplemented!()
+                let ident = self.lexer.expect(TokenKind::Identifier)?;
+                let kind = match self.lexer.peek() {
+                    Some(Ok(token)) => token.kind(),
+                    Some(Err(e)) => {
+                        let e = e.clone();
+                        self.lexer.next();
+                        return Err(e.into());
+                    }
+                    None => {
+                        return Err(anyhow::anyhow!(
+                            "Expect equal or semicolon, but no token found"
+                        ));
+                    }
+                };
+                match kind {
+                    TokenKind::Equal => {
+                        let _equal = self.lexer.next().unwrap()?;
+                        let expr = self.parse_expr(0)?;
+                        let semicolon = self.lexer.expect(TokenKind::Semicolon)?;
+                        let span = (var.span().start, semicolon.span().end).into();
+
+                        return Ok(AstKind::Declaration(Declaration::VarDeclaration(
+                            VarDeclaration::new(
+                                IdentifierExpression::new(ident.lexeme(), ident.span()),
+                                Some(expr),
+                                span,
+                            ),
+                        )));
+                    }
+                    TokenKind::Semicolon => {
+                        let semicolon = self.lexer.next().unwrap()?;
+                        let span = (var.span().start, semicolon.span().end).into();
+
+                        return Ok(AstKind::Declaration(Declaration::VarDeclaration(
+                            VarDeclaration::new(
+                                IdentifierExpression::new(ident.lexeme(), ident.span()),
+                                None,
+                                span,
+                            ),
+                        )));
+                    }
+                    kind => {
+                        return Err(anyhow::anyhow!(
+                            "Expect equal or semicolon, but found {kind}"
+                        ))
+                    }
+                }
             }
             _ => {
                 let expr = self.parse_expr(0)?;
                 let semicolon = self.lexer.expect(TokenKind::Semicolon)?;
                 let span = (expr.span().start, semicolon.span().end).into();
-                let stat = Statement::ExprStmt { span, expr };
+                let stat = Statement::ExpressionStatement(ExpressionStatement::new(expr, span));
 
                 return Ok(AstKind::Statement(stat));
             }
@@ -94,6 +147,10 @@ impl<'a> Parser<'a> {
         };
 
         let mut lhs_expr = match token.kind() {
+            TokenKind::Identifier => Expression::IdentifierExpression(IdentifierExpression::new(
+                token.lexeme(),
+                token.span(),
+            )),
             TokenKind::String => Expression::LiteralExpression(LiteralExpression::new(
                 LiteralKind::String(token.lexeme().trim_matches('"')),
                 token.span(),

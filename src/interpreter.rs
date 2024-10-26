@@ -1,9 +1,9 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap};
 
 use anyhow::Result;
 
 use crate::{
-    AstKind, BinaryExpression, Expression, LiteralKind, Operator, Parser, Statement,
+    AstKind, BinaryExpression, Declaration, Expression, LiteralKind, Operator, Parser, Statement,
     UnaryExpression,
 };
 use span::{GetSpan, Span};
@@ -18,6 +18,7 @@ pub enum RuntimeError {
     },
 }
 
+#[derive(Debug, Clone)]
 enum Value<'a> {
     Number(f64),
     String(Cow<'a, str>),
@@ -39,6 +40,7 @@ impl std::fmt::Display for Value<'_> {
 pub struct Interpreter<'a> {
     parser: Parser<'a>,
     source_code: &'a str,
+    var_value: HashMap<&'a str, Value<'a>>,
 }
 
 impl<'a> Interpreter<'a> {
@@ -47,6 +49,7 @@ impl<'a> Interpreter<'a> {
         Self {
             parser,
             source_code,
+            var_value: HashMap::new(),
         }
     }
 
@@ -54,24 +57,45 @@ impl<'a> Interpreter<'a> {
         self.source_code[..=span.start].lines().count()
     }
 
-    pub fn eval(ast: AstKind) -> Result<()> {
+    pub fn run(&mut self) -> Result<()> {
+        let ast = self.parser.parse()?;
+        self.eval(ast)?;
+
+        Ok(())
+    }
+
+    pub fn eval(&mut self, ast: AstKind<'a>) -> Result<()> {
         match ast {
             AstKind::Program { body } => {
                 for ast in body {
-                    Self::eval(ast)?;
+                    self.eval(ast)?;
                 }
                 return Ok(());
             }
             AstKind::Statement(statement) => match statement {
-                Statement::PrintStmt { span, expr } => {
-                    let value = Self::evaluate_expr(expr)?;
+                Statement::PrintStatement(stmt) => {
+                    let expr = stmt.expr;
+                    let value = self.evaluate_expr(expr)?;
                     println!("{value}");
                 }
-                Statement::ExprStmt { span, expr } => {
-                    Self::evaluate_expr(expr)?;
+                Statement::ExpressionStatement(stmt) => {
+                    let expr = stmt.expr;
+                    self.evaluate_expr(expr)?;
                 }
             },
-            AstKind::Eof => return Ok(()),
+            AstKind::Eof => {}
+            AstKind::Expression(expression) => {
+                self.evaluate_expr(expression)?;
+            }
+            AstKind::Declaration(declaration) => match declaration {
+                Declaration::VarDeclaration(var_declaration) => {
+                    let value = match var_declaration.init {
+                        Some(expr) => self.evaluate_expr(expr)?,
+                        None => Value::Nil,
+                    };
+                    self.var_value.insert(var_declaration.ident.name, value);
+                }
+            },
         }
 
         return Ok(());
@@ -79,19 +103,19 @@ impl<'a> Interpreter<'a> {
 
     pub fn evaluate(&mut self) -> Result<()> {
         let expr = self.parser.parse_expr(0)?;
-        let value = Self::evaluate_expr(expr)?;
+        let value = self.evaluate_expr(expr)?;
 
         println!("{value}");
         Ok(())
     }
 
-    fn evaluate_expr(expr: Expression) -> Result<Value> {
+    fn evaluate_expr(&mut self, expr: Expression<'a>) -> Result<Value<'a>> {
         let span = expr.span();
         match expr {
             Expression::UnaryExpression(unary_expr) => {
                 let span = unary_expr.span();
                 let UnaryExpression { op, expr, .. } = unary_expr;
-                let value = Self::evaluate_expr(*expr)?;
+                let value = self.evaluate_expr(*expr)?;
                 return Ok(match op {
                     Operator::Bang => match value {
                         Value::Boolean(b) => Value::Boolean(!b),
@@ -112,9 +136,7 @@ impl<'a> Interpreter<'a> {
                     _ => unreachable!(""),
                 });
             }
-            Expression::ParenExpression(paren_expr) => {
-                return Self::evaluate_expr(*paren_expr.expr)
-            }
+            Expression::ParenExpression(paren_expr) => return self.evaluate_expr(*paren_expr.expr),
             Expression::BinaryExpression(binary_expr) => {
                 let BinaryExpression {
                     op,
@@ -122,8 +144,8 @@ impl<'a> Interpreter<'a> {
                     rhs_expr,
                     ..
                 } = binary_expr;
-                let lhs = Self::evaluate_expr(*lhs_expr)?;
-                let rhs = Self::evaluate_expr(*rhs_expr)?;
+                let lhs = self.evaluate_expr(*lhs_expr)?;
+                let rhs = self.evaluate_expr(*rhs_expr)?;
 
                 match (&lhs, &rhs) {
                     (Value::Number(a), Value::Number(b)) => match op {
@@ -213,6 +235,13 @@ impl<'a> Interpreter<'a> {
                     LiteralKind::Boolean(v) => Value::Boolean(v),
                     LiteralKind::Nil => Value::Nil,
                 });
+            }
+            Expression::IdentifierExpression(identifier_expression) => {
+                if let Some(value) = self.var_value.get(identifier_expression.name) {
+                    return Ok(value.clone());
+                } else {
+                    return Err(anyhow::anyhow!("Cannot access undeclared variable."));
+                }
             }
         };
     }

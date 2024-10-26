@@ -32,6 +32,9 @@ enum Commands {
 
     Run {
         filename: PathBuf,
+
+        #[arg(long, default_value_t = false)]
+        debug: bool,
     },
 }
 
@@ -84,12 +87,16 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Commands::Run { filename } => {
+        Commands::Run { filename, debug } => {
             let file_contents = read_file(filename);
             let mut parser = codecrafters_interpreter::Parser::new(&file_contents);
             match parser.parse() {
                 Ok(ast) => {
-                    if let Err(e) = Interpreter::eval(ast) {
+                    if *debug {
+                        println!("{:#?}", ast);
+                    }
+                    let mut interpreter = Interpreter::new(&file_contents);
+                    if let Err(e) = interpreter.run() {
                         if let Some(_) = e.downcast_ref::<RuntimeError>() {
                             exit(70)
                         } else {

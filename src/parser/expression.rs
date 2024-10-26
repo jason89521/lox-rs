@@ -9,6 +9,7 @@ pub enum Expression<'a> {
     ParenExpression(ParenExpression<'a>),
     UnaryExpression(UnaryExpression<'a>),
     BinaryExpression(BinaryExpression<'a>),
+    IdentifierExpression(IdentifierExpression<'a>),
 }
 
 impl std::fmt::Display for Expression<'_> {
@@ -28,6 +29,9 @@ impl std::fmt::Display for Expression<'_> {
                 "({} {} {})",
                 binary_expression.op, binary_expression.lhs_expr, binary_expression.rhs_expr
             ),
+            Expression::IdentifierExpression(identifier_expression) => {
+                write!(f, "{}", identifier_expression.name)
+            }
         }
     }
 }
@@ -39,6 +43,7 @@ impl span::GetSpan for Expression<'_> {
             Expression::ParenExpression(expr) => expr.span(),
             Expression::UnaryExpression(expr) => expr.span(),
             Expression::BinaryExpression(expr) => expr.span(),
+            Expression::IdentifierExpression(expr) => expr.span(),
         }
     }
 }
@@ -101,6 +106,18 @@ impl<'a> BinaryExpression<'a> {
             rhs_expr,
             span,
         }
+    }
+}
+
+#[derive(Debug, Span)]
+pub struct IdentifierExpression<'a> {
+    span: Span,
+    pub name: &'a str,
+}
+
+impl<'a> IdentifierExpression<'a> {
+    pub fn new(name: &'a str, span: Span) -> Self {
+        Self { span, name }
     }
 }
 
