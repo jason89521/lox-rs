@@ -16,6 +16,8 @@ pub enum RuntimeError {
         binary: bool,
         span: Span,
     },
+    #[error("Undefined variable '{}'.", ident)]
+    UndefinedVariable { ident: String },
 }
 
 #[derive(Debug, Clone)]
@@ -240,7 +242,10 @@ impl<'a> Interpreter<'a> {
                 if let Some(value) = self.var_value.get(identifier_expression.name) {
                     return Ok(value.clone());
                 } else {
-                    return Err(anyhow::anyhow!("Cannot access undeclared variable."));
+                    return Err(RuntimeError::UndefinedVariable {
+                        ident: identifier_expression.name.to_string(),
+                    }
+                    .into());
                 }
             }
         };
