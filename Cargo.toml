@@ -5,10 +5,31 @@ authors = ["Codecrafters <hello@codecrafters.io>"]
 edition = "2021"
 rust-version = "1.80"
 
-[dependencies]
-anyhow = "1.0.68"                                   # error handling
-bytes = "1.3.0"                                     # helps manage buffers
-thiserror = "1.0.38"                                # error handling
+[workspace]
+
+members = ["crates/*"]
+
+[workspace.dependencies]
+anyhow = "1.0.68"                                    # error handling
+bytes = "1.3.0"                                      # helps manage buffers
+thiserror = "1.0.38"                                 # error handling
 strum = { version = "0.26", features = ["derive"] }
 miette = { version = "7.2.0", features = ["fancy"] }
 clap = { version = "4.5.20", features = ["derive"] }
+syn = "2.0.85"
+quote = "1.0.37"
+span = { path = "crates/span" }
+span_derive = { path = "crates/span_derive" }
+
+
+[dependencies]
+anyhow = { workspace = true }      # error handling
+bytes = { workspace = true }       # helps manage buffers
+thiserror = { workspace = true }   # error handling
+strum = { workspace = true }
+miette = { workspace = true }
+clap = { workspace = true }
+syn = { workspace = true }
+quote = { workspace = true }
+span = { workspace = true }
+span_derive = { workspace = true }

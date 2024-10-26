@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use std::fmt::Display;
 
-pub type Span = (usize, usize);
+use span::Span;
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub struct LexerError {
@@ -28,7 +28,7 @@ pub enum LexerErrorKind {
 
 impl LexerError {
     pub fn line(&self) -> usize {
-        self.source_code[..=self.span.0].lines().count()
+        self.source_code[..=self.span.start].lines().count()
     }
 
     pub fn new(kind: LexerErrorKind, span: Span, source_code: &str) -> Self {
@@ -113,7 +113,7 @@ impl<'a> Token<'a> {
     }
 
     pub fn line(&self, source_code: &str) -> usize {
-        source_code[..=self.span.0].lines().count()
+        source_code[..=self.span.start].lines().count()
     }
 
     pub fn span(&self) -> Span {
@@ -229,7 +229,7 @@ impl<'a> Iterator for Lexer<'a> {
                     Some(Ok(Token::new(
                         TokenKind::Eof,
                         "",
-                        (self.source.len() - 1, self.source.len() - 1),
+                        (self.source.len() - 1, self.source.len() - 1).into(),
                     )))
                 };
             }
@@ -244,7 +244,7 @@ impl<'a> Iterator for Lexer<'a> {
                 Some(Ok(Token::new(
                     kind,
                     ch_str,
-                    (byte_offset, byte_offset + ch.len_utf8()),
+                    (byte_offset, byte_offset + ch.len_utf8()).into(),
                 )))
             };
             let token_item = |token: Token<'a>| Some(Ok(token));
@@ -294,7 +294,7 @@ impl<'a> Iterator for Lexer<'a> {
 
                     return Some(Err(LexerError::new(
                         LexerErrorKind::UnexpectedCharacter { token: ch },
-                        (byte_offset, ch.len_utf8()),
+                        (byte_offset, ch.len_utf8()).into(),
                         self.source,
                     )));
                 }
@@ -308,13 +308,13 @@ impl<'a> Iterator for Lexer<'a> {
                         return token_item(Token::new(
                             yes,
                             &origin_rest[..ch.len_utf8() + 1],
-                            (byte_offset, byte_offset + 1 + ch.len_utf8()),
+                            (byte_offset, byte_offset + 1 + ch.len_utf8()).into(),
                         ));
                     } else {
                         return token_item(Token::new(
                             no,
                             ch_str,
-                            (byte_offset, byte_offset + ch.len_utf8()),
+                            (byte_offset, byte_offset + ch.len_utf8()).into(),
                         ));
                     }
                 }
@@ -328,7 +328,7 @@ impl<'a> Iterator for Lexer<'a> {
                         return token_item(Token::new(
                             TokenKind::Slash,
                             ch_str,
-                            (byte_offset, byte_offset + ch.len_utf8()),
+                            (byte_offset, byte_offset + ch.len_utf8()).into(),
                         ));
                     }
                 }
@@ -340,7 +340,7 @@ impl<'a> Iterator for Lexer<'a> {
                         return token_item(Token::new(
                             TokenKind::String,
                             lexeme,
-                            (byte_offset, byte_offset + lexeme.len()),
+                            (byte_offset, byte_offset + lexeme.len()).into(),
                         ));
                     } else {
                         self.has_error = true;
@@ -348,7 +348,7 @@ impl<'a> Iterator for Lexer<'a> {
                         self.rest = &self.rest[self.rest.len()..];
                         return Some(Err(LexerError::new(
                             LexerErrorKind::UnterminatedString,
-                            (byte_offset, self.source.len() - byte_offset),
+                            (byte_offset, self.source.len() - byte_offset).into(),
                             self.source,
                         )));
                     }
@@ -383,7 +383,7 @@ impl<'a> Iterator for Lexer<'a> {
                         Err(_) => {
                             return Some(Err(LexerError::new(
                                 LexerErrorKind::InvalidNumber,
-                                (byte_offset, lexeme.len()),
+                                (byte_offset, lexeme.len()).into(),
                                 &self.source,
                             )))
                         }
@@ -392,7 +392,7 @@ impl<'a> Iterator for Lexer<'a> {
                     return token_item(Token::new(
                         TokenKind::Number(parsed_number),
                         lexeme,
-                        (byte_offset, byte_offset + lexeme.len()),
+                        (byte_offset, byte_offset + lexeme.len()).into(),
                     ));
                 }
                 MultiCharToken::Identifier => {
@@ -427,7 +427,7 @@ impl<'a> Iterator for Lexer<'a> {
                     return token_item(Token::new(
                         kind,
                         lexeme,
-                        (byte_offset, byte_offset + lexeme.len()),
+                        (byte_offset, byte_offset + lexeme.len()).into(),
                     ));
                 }
             }

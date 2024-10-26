@@ -2,7 +2,11 @@ use std::borrow::Cow;
 
 use anyhow::Result;
 
-use crate::{AstKind, Expr, LiteralExprKind, Operator, Parser, Span, Statement};
+use crate::{
+    AstKind, BinaryExpression, Expression, LiteralKind, Operator, Parser, Statement,
+    UnaryExpression,
+};
+use span::{GetSpan, Span};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
@@ -47,7 +51,7 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn line(&self, span: Span) -> usize {
-        self.source_code[..=span.0].lines().count()
+        self.source_code[..=span.start].lines().count()
     }
 
     pub fn eval(ast: AstKind) -> Result<()> {
@@ -67,7 +71,6 @@ impl<'a> Interpreter<'a> {
                     Self::evaluate_expr(expr)?;
                 }
             },
-            AstKind::Expr(expr) => return Ok(()),
             AstKind::Eof => return Ok(()),
         }
 
@@ -82,10 +85,12 @@ impl<'a> Interpreter<'a> {
         Ok(())
     }
 
-    fn evaluate_expr(expr: Expr) -> Result<Value> {
+    fn evaluate_expr(expr: Expression) -> Result<Value> {
         let span = expr.span();
         match expr {
-            Expr::UnaryExpr { expr, op, span } => {
+            Expression::UnaryExpression(unary_expr) => {
+                let span = unary_expr.span();
+                let UnaryExpression { op, expr, .. } = unary_expr;
                 let value = Self::evaluate_expr(*expr)?;
                 return Ok(match op {
                     Operator::Bang => match value {
@@ -107,13 +112,16 @@ impl<'a> Interpreter<'a> {
                     _ => unreachable!(""),
                 });
             }
-            Expr::ParenExpr { expr, .. } => return Self::evaluate_expr(*expr),
-            Expr::BinaryExpr {
-                op,
-                lhs_expr,
-                rhs_expr,
-                ..
-            } => {
+            Expression::ParenExpression(paren_expr) => {
+                return Self::evaluate_expr(*paren_expr.expr)
+            }
+            Expression::BinaryExpression(binary_expr) => {
+                let BinaryExpression {
+                    op,
+                    lhs_expr,
+                    rhs_expr,
+                    ..
+                } = binary_expr;
                 let lhs = Self::evaluate_expr(*lhs_expr)?;
                 let rhs = Self::evaluate_expr(*rhs_expr)?;
 
@@ -197,13 +205,14 @@ impl<'a> Interpreter<'a> {
                     _ => return Err(anyhow::anyhow!("Mismatched type: {} and {}", lhs, rhs)),
                 }
             }
-            Expr::LiteralExpr { kind, .. } => {
+            Expression::LiteralExpression(literal_expr) => {
+                let kind = literal_expr.kind;
                 return Ok(match kind {
-                    LiteralExprKind::Number(v) => Value::Number(v),
-                    LiteralExprKind::String(v) => Value::String(Cow::Borrowed(v)),
-                    LiteralExprKind::Boolean(v) => Value::Boolean(v),
-                    LiteralExprKind::Nil => Value::Nil,
-                })
+                    LiteralKind::Number(v) => Value::Number(v),
+                    LiteralKind::String(v) => Value::String(Cow::Borrowed(v)),
+                    LiteralKind::Boolean(v) => Value::Boolean(v),
+                    LiteralKind::Nil => Value::Nil,
+                });
             }
         };
     }
