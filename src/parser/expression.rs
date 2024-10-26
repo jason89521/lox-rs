@@ -10,6 +10,7 @@ pub enum Expression<'a> {
     UnaryExpression(UnaryExpression<'a>),
     BinaryExpression(BinaryExpression<'a>),
     IdentifierExpression(IdentifierExpression<'a>),
+    AssignmentExpression(AssignmentExpression<'a>),
 }
 
 impl std::fmt::Display for Expression<'_> {
@@ -32,6 +33,11 @@ impl std::fmt::Display for Expression<'_> {
             Expression::IdentifierExpression(identifier_expression) => {
                 write!(f, "{}", identifier_expression.name)
             }
+            Expression::AssignmentExpression(assignment_expression) => write!(
+                f,
+                "(= {} {})",
+                assignment_expression.ident.name, assignment_expression.expr
+            ),
         }
     }
 }
@@ -44,6 +50,7 @@ impl span::GetSpan for Expression<'_> {
             Expression::UnaryExpression(expr) => expr.span(),
             Expression::BinaryExpression(expr) => expr.span(),
             Expression::IdentifierExpression(expr) => expr.span(),
+            Expression::AssignmentExpression(expr) => expr.span(),
         }
     }
 }
@@ -118,6 +125,19 @@ pub struct IdentifierExpression<'a> {
 impl<'a> IdentifierExpression<'a> {
     pub fn new(name: &'a str, span: Span) -> Self {
         Self { span, name }
+    }
+}
+
+#[derive(Debug, Span)]
+pub struct AssignmentExpression<'a> {
+    span: Span,
+    pub ident: IdentifierExpression<'a>,
+    pub expr: Box<Expression<'a>>,
+}
+
+impl<'a> AssignmentExpression<'a> {
+    pub fn new(ident: IdentifierExpression<'a>, expr: Box<Expression<'a>>, span: Span) -> Self {
+        Self { span, ident, expr }
     }
 }
 

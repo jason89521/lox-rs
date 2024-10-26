@@ -248,6 +248,19 @@ impl<'a> Interpreter<'a> {
                     .into());
                 }
             }
+            Expression::AssignmentExpression(assignment_expression) => {
+                let val = self.evaluate_expr(*assignment_expression.expr)?;
+                return if let Some(value) = self.var_value.get_mut(assignment_expression.ident.name)
+                {
+                    *value = val.clone();
+                    Ok(val)
+                } else {
+                    Err(RuntimeError::UndefinedVariable {
+                        ident: assignment_expression.ident.name.to_string(),
+                    }
+                    .into())
+                };
+            }
         };
     }
 }

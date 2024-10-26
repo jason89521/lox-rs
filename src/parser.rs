@@ -7,7 +7,7 @@ mod statement;
 
 pub use declaration::Declaration;
 use declaration::VarDeclaration;
-use expression::IdentifierExpression;
+use expression::{AssignmentExpression, IdentifierExpression};
 pub use expression::{
     BinaryExpression, Expression, LiteralExpression, LiteralKind, ParenExpression, UnaryExpression,
 };
@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expr(&mut self, min_bp: u8) -> anyhow::Result<Expression<'a>> {
-        let token = match self.lexer.next() {
+        let lhs_token = match self.lexer.next() {
             Some(token) => token?,
             None => {
                 return Ok(Expression::LiteralExpression(LiteralExpression::new(
@@ -146,43 +146,43 @@ impl<'a> Parser<'a> {
             }
         };
 
-        let mut lhs_expr = match token.kind() {
+        let mut lhs_expr = match lhs_token.kind() {
             TokenKind::Identifier => Expression::IdentifierExpression(IdentifierExpression::new(
-                token.lexeme(),
-                token.span(),
+                lhs_token.lexeme(),
+                lhs_token.span(),
             )),
             TokenKind::String => Expression::LiteralExpression(LiteralExpression::new(
-                LiteralKind::String(token.lexeme().trim_matches('"')),
-                token.span(),
+                LiteralKind::String(lhs_token.lexeme().trim_matches('"')),
+                lhs_token.span(),
             )),
             TokenKind::Number(n) => Expression::LiteralExpression(LiteralExpression::new(
                 LiteralKind::Number(n),
-                token.span(),
+                lhs_token.span(),
             )),
             TokenKind::True => Expression::LiteralExpression(LiteralExpression::new(
                 LiteralKind::Boolean(true),
-                token.span(),
+                lhs_token.span(),
             )),
             TokenKind::False => Expression::LiteralExpression(LiteralExpression::new(
                 LiteralKind::Boolean(false),
-                token.span(),
+                lhs_token.span(),
             )),
             TokenKind::Nil => Expression::LiteralExpression(LiteralExpression::new(
                 LiteralKind::Nil,
-                token.span(),
+                lhs_token.span(),
             )),
             TokenKind::LeftParen => {
                 let expr = self.parse_expr(0)?;
                 let right_paren_span = self.lexer.expect(TokenKind::RightParen)?.span();
-                let span = (token.span().start, right_paren_span.end).into();
+                let span = (lhs_token.span().start, right_paren_span.end).into();
                 Expression::ParenExpression(ParenExpression::new(Box::new(expr), span))
             }
             TokenKind::Minus | TokenKind::Bang => {
-                let (_, r_bp) = prefix_binding_power(token.kind().into());
+                let (_, r_bp) = prefix_binding_power(lhs_token.kind().into());
                 let rhs_expr = self.parse_expr(r_bp)?;
-                let span = (token.span().start, rhs_expr.span().end).into();
+                let span = (lhs_token.span().start, rhs_expr.span().end).into();
                 Expression::UnaryExpression(UnaryExpression::new(
-                    token.lexeme().into(),
+                    lhs_token.lexeme().into(),
                     Box::new(rhs_expr),
                     span,
                 ))
@@ -190,8 +190,8 @@ impl<'a> Parser<'a> {
             _ => {
                 return Err(anyhow::anyhow!(
                     "[line {}] Error at '{}': Expect expression.",
-                    token.line(self.source_code),
-                    token.lexeme()
+                    lhs_token.line(self.source_code),
+                    lhs_token.lexeme()
                 ))
             }
         };
@@ -220,21 +220,30 @@ impl<'a> Parser<'a> {
                 | TokenKind::Greater
                 | TokenKind::GreaterEqual
                 | TokenKind::BangEqual
-                | TokenKind::EqualEqual => {
-                    let lexeme = op.lexeme();
+                | TokenKind::EqualEqual
+                | TokenKind::Equal => {
                     let (l_bp, r_bp) = infix_binding_power(op.kind().into());
+                    let op = op.lexeme().into();
                     if l_bp < min_bp {
                         break;
                     }
                     self.lexer.next();
                     let rhs_expr = self.parse_expr(r_bp)?;
                     let span = (lhs_expr.span().start, rhs_expr.span().end).into();
-                    lhs_expr = Expression::BinaryExpression(BinaryExpression::new(
-                        Box::new(lhs_expr),
-                        lexeme.into(),
-                        Box::new(rhs_expr),
-                        span,
-                    ));
+                    lhs_expr = if op == Operator::Equal {
+                        Expression::AssignmentExpression(AssignmentExpression::new(
+                            IdentifierExpression::new(&lhs_token.lexeme(), lhs_token.span()),
+                            Box::new(rhs_expr),
+                            span,
+                        ))
+                    } else {
+                        Expression::BinaryExpression(BinaryExpression::new(
+                            Box::new(lhs_expr),
+                            op,
+                            Box::new(rhs_expr),
+                            span,
+                        ))
+                    };
                 }
                 TokenKind::Eof | TokenKind::Semicolon => break,
                 token => {
@@ -250,6 +259,7 @@ impl<'a> Parser<'a> {
 
 fn infix_binding_power(op: Operator) -> (u8, u8) {
     match op {
+        Operator::Equal => (2, 1),
         Operator::Less
         | Operator::LessEqual
         | Operator::Greater

@@ -14,6 +14,7 @@ pub enum Operator {
     BangEqual,
     Bang,
     Print,
+    Equal,
 }
 
 impl std::fmt::Display for Operator {
@@ -31,6 +32,7 @@ impl std::fmt::Display for Operator {
             Operator::BangEqual => write!(f, "!="),
             Operator::Bang => write!(f, "!"),
             Operator::Print => write!(f, "print"),
+            Operator::Equal => write!(f, "="),
         }
     }
 }
@@ -50,6 +52,7 @@ impl Into<Operator> for &str {
             "!=" => Operator::BangEqual,
             "==" => Operator::EqualEqual,
             "print" => Operator::Print,
+            "=" => Operator::Equal,
             _ => panic!("Unknown operator {self}"),
         }
     }
@@ -69,6 +72,7 @@ impl Into<Operator> for TokenKind {
             TokenKind::Bang => Operator::Bang,
             TokenKind::BangEqual => Operator::BangEqual,
             TokenKind::EqualEqual => Operator::EqualEqual,
+            TokenKind::Equal => Operator::Equal,
             _ => panic!("Unknown operator {self}"),
         }
     }

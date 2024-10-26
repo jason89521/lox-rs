@@ -12,9 +12,10 @@ pub fn hello_macro_derive(input: TokenStream) -> TokenStream {
 }
 
 fn impl_hello_macro(ast: &syn::DeriveInput) -> TokenStream {
+    let (impl_generics, ty_generics, ..) = ast.generics.split_for_impl();
     let name = &ast.ident;
     let gen = quote! {
-        impl span::GetSpan for #name<'_> {
+        impl #impl_generics span::GetSpan for #name #ty_generics {
             fn span(&self) -> Span {
                 self.span
             }
