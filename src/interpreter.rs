@@ -107,9 +107,11 @@ impl<'a> Interpreter<'a> {
                 self.context.declare(declaration.ident.name, value);
             }
             Statement::BlockStatement(block) => {
+                self.context.enter_block();
                 for stmt in block.stmts.into_iter() {
                     self.visit_stmt(stmt)?;
                 }
+                self.context.exit_block();
             }
         }
 
