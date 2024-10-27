@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use std::fmt::Display;
 
-use span::Span;
+use lox_span::Span;
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub struct LexerError {

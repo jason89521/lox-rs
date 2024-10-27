@@ -11,8 +11,8 @@ use expression::{AssignmentExpression, IdentifierExpression};
 pub use expression::{
     BinaryExpression, Expression, LiteralExpression, LiteralKind, ParenExpression, UnaryExpression,
 };
+use lox_span::GetSpan;
 pub use operator::Operator;
-use span::GetSpan;
 pub use statement::Statement;
 use statement::{ExpressionStatement, PrintStatement};
 
@@ -175,17 +175,17 @@ impl<'a> Parser<'a> {
                 let expr = self.parse_expr(0)?;
                 let right_paren_span = self.lexer.expect(TokenKind::RightParen)?.span();
                 let span = (lhs_token.span().start, right_paren_span.end).into();
-                Expression::ParenExpression(ParenExpression::new(Box::new(expr), span))
+                Expression::ParenExpression(Box::new(ParenExpression::new(expr, span)))
             }
             TokenKind::Minus | TokenKind::Bang => {
                 let (_, r_bp) = prefix_binding_power(lhs_token.kind().into());
                 let rhs_expr = self.parse_expr(r_bp)?;
                 let span = (lhs_token.span().start, rhs_expr.span().end).into();
-                Expression::UnaryExpression(UnaryExpression::new(
+                Expression::UnaryExpression(Box::new(UnaryExpression::new(
                     lhs_token.lexeme().into(),
-                    Box::new(rhs_expr),
+                    rhs_expr,
                     span,
-                ))
+                )))
             }
             _ => {
                 return Err(anyhow::anyhow!(
@@ -231,18 +231,15 @@ impl<'a> Parser<'a> {
                     let rhs_expr = self.parse_expr(r_bp)?;
                     let span = (lhs_expr.span().start, rhs_expr.span().end).into();
                     lhs_expr = if op == Operator::Equal {
-                        Expression::AssignmentExpression(AssignmentExpression::new(
+                        Expression::AssignmentExpression(Box::new(AssignmentExpression::new(
                             IdentifierExpression::new(&lhs_token.lexeme(), lhs_token.span()),
-                            Box::new(rhs_expr),
+                            rhs_expr,
                             span,
-                        ))
+                        )))
                     } else {
-                        Expression::BinaryExpression(BinaryExpression::new(
-                            Box::new(lhs_expr),
-                            op,
-                            Box::new(rhs_expr),
-                            span,
-                        ))
+                        Expression::BinaryExpression(Box::new(BinaryExpression::new(
+                            lhs_expr, op, rhs_expr, span,
+                        )))
                     };
                 }
                 TokenKind::Eof | TokenKind::Semicolon => break,

@@ -1,43 +1,22 @@
-use span::{GetSpan, Span};
-use span_derive::Span;
+use lox_derive::{New, Span};
+use lox_span::Span;
 
 use super::expression::Expression;
 
-#[derive(Debug)]
+#[derive(Debug, Span)]
 pub enum Statement<'a> {
     PrintStatement(PrintStatement<'a>),
     ExpressionStatement(ExpressionStatement<'a>),
 }
 
-impl GetSpan for Statement<'_> {
-    fn span(&self) -> Span {
-        match self {
-            Statement::PrintStatement(stmt) => stmt.span(),
-            Statement::ExpressionStatement(stmt) => stmt.span(),
-        }
-    }
-}
-
-#[derive(Debug, Span)]
+#[derive(Debug, Span, New)]
 pub struct PrintStatement<'a> {
-    span: Span,
     pub expr: Expression<'a>,
+    span: Span,
 }
 
-impl<'a> PrintStatement<'a> {
-    pub fn new(expr: Expression<'a>, span: Span) -> Self {
-        Self { span, expr }
-    }
-}
-
-#[derive(Debug, Span)]
+#[derive(Debug, Span, New)]
 pub struct ExpressionStatement<'a> {
-    span: Span,
     pub expr: Expression<'a>,
-}
-
-impl<'a> ExpressionStatement<'a> {
-    pub fn new(expr: Expression<'a>, span: Span) -> Self {
-        Self { span, expr }
-    }
+    span: Span,
 }

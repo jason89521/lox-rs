@@ -1,16 +1,16 @@
-use span::Span;
-use span_derive::Span;
+use lox_derive::{New, Span};
+use lox_span::Span;
 
 use super::Operator;
 
-#[derive(Debug)]
+#[derive(Debug, Span)]
 pub enum Expression<'a> {
     LiteralExpression(LiteralExpression<'a>),
-    ParenExpression(ParenExpression<'a>),
-    UnaryExpression(UnaryExpression<'a>),
-    BinaryExpression(BinaryExpression<'a>),
+    ParenExpression(Box<ParenExpression<'a>>),
+    UnaryExpression(Box<UnaryExpression<'a>>),
+    BinaryExpression(Box<BinaryExpression<'a>>),
     IdentifierExpression(IdentifierExpression<'a>),
-    AssignmentExpression(AssignmentExpression<'a>),
+    AssignmentExpression(Box<AssignmentExpression<'a>>),
 }
 
 impl std::fmt::Display for Expression<'_> {
@@ -42,103 +42,44 @@ impl std::fmt::Display for Expression<'_> {
     }
 }
 
-impl span::GetSpan for Expression<'_> {
-    fn span(&self) -> Span {
-        match self {
-            Expression::LiteralExpression(expr) => expr.span(),
-            Expression::ParenExpression(expr) => expr.span(),
-            Expression::UnaryExpression(expr) => expr.span(),
-            Expression::BinaryExpression(expr) => expr.span(),
-            Expression::IdentifierExpression(expr) => expr.span(),
-            Expression::AssignmentExpression(expr) => expr.span(),
-        }
-    }
-}
-
-#[derive(Debug, Span)]
+#[derive(Debug, Span, New)]
 pub struct LiteralExpression<'a> {
     pub kind: LiteralKind<'a>,
     span: Span,
 }
 
-impl<'a> LiteralExpression<'a> {
-    pub fn new(kind: LiteralKind<'a>, span: Span) -> Self {
-        Self { kind, span }
-    }
-}
-
-#[derive(Debug, Span)]
+#[derive(Debug, Span, New)]
 pub struct ParenExpression<'a> {
-    pub expr: Box<Expression<'a>>,
+    pub expr: Expression<'a>,
     span: Span,
 }
 
-impl<'a> ParenExpression<'a> {
-    pub fn new(expr: Box<Expression<'a>>, span: Span) -> Self {
-        Self { expr, span }
-    }
-}
-
-#[derive(Debug, Span)]
+#[derive(Debug, Span, New)]
 pub struct UnaryExpression<'a> {
     pub op: Operator,
-    pub expr: Box<Expression<'a>>,
+    pub expr: Expression<'a>,
     span: Span,
 }
 
-impl<'a> UnaryExpression<'a> {
-    pub fn new(op: Operator, expr: Box<Expression<'a>>, span: Span) -> Self {
-        Self { op, expr, span }
-    }
-}
-
-#[derive(Debug, Span)]
+#[derive(Debug, Span, New)]
 pub struct BinaryExpression<'a> {
-    pub lhs_expr: Box<Expression<'a>>,
+    pub lhs_expr: Expression<'a>,
     pub op: Operator,
-    pub rhs_expr: Box<Expression<'a>>,
+    pub rhs_expr: Expression<'a>,
     span: Span,
 }
 
-impl<'a> BinaryExpression<'a> {
-    pub fn new(
-        lhs_expr: Box<Expression<'a>>,
-        op: Operator,
-        rhs_expr: Box<Expression<'a>>,
-        span: Span,
-    ) -> Self {
-        Self {
-            lhs_expr,
-            op,
-            rhs_expr,
-            span,
-        }
-    }
-}
-
-#[derive(Debug, Span)]
+#[derive(Debug, Span, New)]
 pub struct IdentifierExpression<'a> {
-    span: Span,
     pub name: &'a str,
-}
-
-impl<'a> IdentifierExpression<'a> {
-    pub fn new(name: &'a str, span: Span) -> Self {
-        Self { span, name }
-    }
-}
-
-#[derive(Debug, Span)]
-pub struct AssignmentExpression<'a> {
     span: Span,
-    pub ident: IdentifierExpression<'a>,
-    pub expr: Box<Expression<'a>>,
 }
 
-impl<'a> AssignmentExpression<'a> {
-    pub fn new(ident: IdentifierExpression<'a>, expr: Box<Expression<'a>>, span: Span) -> Self {
-        Self { span, ident, expr }
-    }
+#[derive(Debug, Span, New)]
+pub struct AssignmentExpression<'a> {
+    pub ident: IdentifierExpression<'a>,
+    pub expr: Expression<'a>,
+    span: Span,
 }
 
 #[derive(Debug, Clone, Copy)]

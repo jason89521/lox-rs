@@ -1,22 +1,16 @@
-use span::Span;
-use span_derive::Span;
+use lox_derive::{New, Span};
+use lox_span::Span;
 
 use super::{expression::IdentifierExpression, Expression};
 
-#[derive(Debug)]
+#[derive(Debug, Span)]
 pub enum Declaration<'a> {
     VarDeclaration(VarDeclaration<'a>),
 }
 
-#[derive(Debug, Span)]
+#[derive(Debug, Span, New)]
 pub struct VarDeclaration<'a> {
-    span: Span,
-    pub init: Option<Expression<'a>>,
     pub ident: IdentifierExpression<'a>,
-}
-
-impl<'a> VarDeclaration<'a> {
-    pub fn new(ident: IdentifierExpression<'a>, init: Option<Expression<'a>>, span: Span) -> Self {
-        Self { span, init, ident }
-    }
+    pub init: Option<Expression<'a>>,
+    span: Span,
 }

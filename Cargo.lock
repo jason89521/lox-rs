@@ -161,10 +161,10 @@ dependencies = [
  "anyhow",
  "bytes",
  "clap",
+ "lox_derive",
+ "lox_span",
  "miette",
  "quote",
- "span",
- "span_derive",
  "strum",
  "syn",
  "thiserror",
@@ -225,6 +225,18 @@ name = "linux-raw-sys"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
+
+[[package]]
+name = "lox_derive"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "lox_span"
+version = "0.1.0"
 
 [[package]]
 name = "memchr"
@@ -335,19 +347,6 @@ name = "smawk"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
-
-[[package]]
-name = "span"
-version = "0.1.0"
-
-[[package]]
-name = "span_derive"
-version = "0.1.0"
-dependencies = [
- "quote",
- "span",
- "syn",
-]
 
 [[package]]
 name = "strsim"

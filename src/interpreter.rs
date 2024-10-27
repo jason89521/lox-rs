@@ -6,7 +6,7 @@ use crate::{
     AstKind, BinaryExpression, Declaration, Expression, LiteralKind, Operator, Parser, Statement,
     UnaryExpression,
 };
-use span::{GetSpan, Span};
+use lox_span::{GetSpan, Span};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
@@ -116,8 +116,8 @@ impl<'a> Interpreter<'a> {
         match expr {
             Expression::UnaryExpression(unary_expr) => {
                 let span = unary_expr.span();
-                let UnaryExpression { op, expr, .. } = unary_expr;
-                let value = self.evaluate_expr(*expr)?;
+                let UnaryExpression { op, expr, .. } = *unary_expr;
+                let value = self.evaluate_expr(expr)?;
                 return Ok(match op {
                     Operator::Bang => match value {
                         Value::Boolean(b) => Value::Boolean(!b),
@@ -138,16 +138,16 @@ impl<'a> Interpreter<'a> {
                     _ => unreachable!(""),
                 });
             }
-            Expression::ParenExpression(paren_expr) => return self.evaluate_expr(*paren_expr.expr),
+            Expression::ParenExpression(paren_expr) => return self.evaluate_expr(paren_expr.expr),
             Expression::BinaryExpression(binary_expr) => {
                 let BinaryExpression {
                     op,
                     lhs_expr,
                     rhs_expr,
                     ..
-                } = binary_expr;
-                let lhs = self.evaluate_expr(*lhs_expr)?;
-                let rhs = self.evaluate_expr(*rhs_expr)?;
+                } = *binary_expr;
+                let lhs = self.evaluate_expr(lhs_expr)?;
+                let rhs = self.evaluate_expr(rhs_expr)?;
 
                 match (&lhs, &rhs) {
                     (Value::Number(a), Value::Number(b)) => match op {
@@ -249,7 +249,7 @@ impl<'a> Interpreter<'a> {
                 }
             }
             Expression::AssignmentExpression(assignment_expression) => {
-                let val = self.evaluate_expr(*assignment_expression.expr)?;
+                let val = self.evaluate_expr(assignment_expression.expr)?;
                 return if let Some(value) = self.var_value.get_mut(assignment_expression.ident.name)
                 {
                     *value = val.clone();

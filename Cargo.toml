@@ -18,18 +18,18 @@ miette = { version = "7.2.0", features = ["fancy"] }
 clap = { version = "4.5.20", features = ["derive"] }
 syn = "2.0.85"
 quote = "1.0.37"
-span = { path = "crates/span" }
-span_derive = { path = "crates/span_derive" }
+lox_span = { path = "crates/lox_span" }
+lox_derive = { path = "crates/lox_derive" }
 
 
 [dependencies]
-anyhow = { workspace = true }      # error handling
-bytes = { workspace = true }       # helps manage buffers
-thiserror = { workspace = true }   # error handling
+anyhow = { workspace = true }     # error handling
+bytes = { workspace = true }      # helps manage buffers
+thiserror = { workspace = true }  # error handling
 strum = { workspace = true }
 miette = { workspace = true }
 clap = { workspace = true }
 syn = { workspace = true }
 quote = { workspace = true }
-span = { workspace = true }
-span_derive = { workspace = true }
+lox_span = { workspace = true }
+lox_derive = { workspace = true }
