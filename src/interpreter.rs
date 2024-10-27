@@ -1,12 +1,16 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::borrow::Cow;
 
 use anyhow::Result;
 
 use crate::{
-    AstKind, BinaryExpression, Declaration, Expression, LiteralKind, Operator, Parser, Statement,
+    AstKind, BinaryExpression, Expression, LiteralKind, Operator, Parser, Statement,
     UnaryExpression,
 };
 use lox_span::{GetSpan, Span};
+
+mod context;
+
+use context::Context;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
@@ -42,7 +46,7 @@ impl std::fmt::Display for Value<'_> {
 pub struct Interpreter<'a> {
     parser: Parser<'a>,
     source_code: &'a str,
-    var_value: HashMap<&'a str, Value<'a>>,
+    context: Context<'a>,
 }
 
 impl<'a> Interpreter<'a> {
@@ -51,7 +55,7 @@ impl<'a> Interpreter<'a> {
         Self {
             parser,
             source_code,
-            var_value: HashMap::new(),
+            context: Context::new(),
         }
     }
 
@@ -74,30 +78,39 @@ impl<'a> Interpreter<'a> {
                 }
                 return Ok(());
             }
-            AstKind::Statement(statement) => match statement {
-                Statement::PrintStatement(stmt) => {
-                    let expr = stmt.expr;
-                    let value = self.evaluate_expr(expr)?;
-                    println!("{value}");
-                }
-                Statement::ExpressionStatement(stmt) => {
-                    let expr = stmt.expr;
-                    self.evaluate_expr(expr)?;
-                }
-            },
+            AstKind::Statement(statement) => return self.visit_stmt(statement),
             AstKind::Eof => {}
             AstKind::Expression(expression) => {
                 self.evaluate_expr(expression)?;
             }
-            AstKind::Declaration(declaration) => match declaration {
-                Declaration::VarDeclaration(var_declaration) => {
-                    let value = match var_declaration.init {
-                        Some(expr) => self.evaluate_expr(expr)?,
-                        None => Value::Nil,
-                    };
-                    self.var_value.insert(var_declaration.ident.name, value);
+        }
+
+        return Ok(());
+    }
+
+    fn visit_stmt(&mut self, stmt: Statement<'a>) -> Result<()> {
+        match stmt {
+            Statement::PrintStatement(stmt) => {
+                let expr = stmt.expr;
+                let value = self.evaluate_expr(expr)?;
+                println!("{value}");
+            }
+            Statement::ExpressionStatement(stmt) => {
+                let expr = stmt.expr;
+                self.evaluate_expr(expr)?;
+            }
+            Statement::VarDeclaration(declaration) => {
+                let value = match declaration.init {
+                    Some(expr) => self.evaluate_expr(expr)?,
+                    None => Value::Nil,
+                };
+                self.context.declare(declaration.ident.name, value);
+            }
+            Statement::BlockStatement(block) => {
+                for stmt in block.stmts.into_iter() {
+                    self.visit_stmt(stmt)?;
                 }
-            },
+            }
         }
 
         return Ok(());
@@ -239,7 +252,7 @@ impl<'a> Interpreter<'a> {
                 });
             }
             Expression::IdentifierExpression(identifier_expression) => {
-                if let Some(value) = self.var_value.get(identifier_expression.name) {
+                if let Some(value) = self.context.get(identifier_expression.name) {
                     return Ok(value.clone());
                 } else {
                     return Err(RuntimeError::UndefinedVariable {
@@ -250,16 +263,12 @@ impl<'a> Interpreter<'a> {
             }
             Expression::AssignmentExpression(assignment_expression) => {
                 let val = self.evaluate_expr(assignment_expression.expr)?;
-                return if let Some(value) = self.var_value.get_mut(assignment_expression.ident.name)
-                {
-                    *value = val.clone();
-                    Ok(val)
-                } else {
-                    Err(RuntimeError::UndefinedVariable {
+                self.context
+                    .assign(assignment_expression.ident.name, val.clone())
+                    .map_err(|_| RuntimeError::UndefinedVariable {
                         ident: assignment_expression.ident.name.to_string(),
-                    }
-                    .into())
-                };
+                    })?;
+                return Ok(val);
             }
         };
     }
