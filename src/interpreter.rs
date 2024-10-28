@@ -165,6 +165,23 @@ impl<'a> Interpreter<'a> {
     fn evaluate_expr(&mut self, expr: Expression<'a>) -> Result<Value<'a>> {
         let span = expr.span();
         match expr {
+            Expression::LogicalExpression(logical_expr) => {
+                let op = logical_expr.op;
+                let left_value = self.evaluate_expr(logical_expr.lhs_expr)?;
+                if left_value.is_truthy() {
+                    if op == Operator::And {
+                        return self.evaluate_expr(logical_expr.rhs_expr);
+                    } else {
+                        return Ok(left_value);
+                    }
+                } else {
+                    if op == Operator::And {
+                        return Ok(left_value);
+                    } else {
+                        return self.evaluate_expr(logical_expr.rhs_expr);
+                    }
+                }
+            }
             Expression::UnaryExpression(unary_expr) => {
                 let span = unary_expr.span();
                 let UnaryExpression { op, expr, .. } = *unary_expr;

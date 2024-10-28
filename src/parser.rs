@@ -4,7 +4,7 @@ mod expression;
 mod operator;
 mod statement;
 
-use expression::{AssignmentExpression, IdentifierExpression};
+use expression::{AssignmentExpression, IdentifierExpression, LogicalExpression};
 pub use expression::{
     BinaryExpression, Expression, LiteralExpression, LiteralKind, ParenExpression, UnaryExpression,
 };
@@ -257,7 +257,9 @@ impl<'a> Parser<'a> {
                 | TokenKind::GreaterEqual
                 | TokenKind::BangEqual
                 | TokenKind::EqualEqual
-                | TokenKind::Equal => {
+                | TokenKind::Equal
+                | TokenKind::And
+                | TokenKind::Or => {
                     let (l_bp, r_bp) = infix_binding_power(op.kind().into());
                     let op = op.lexeme().into();
                     if l_bp < min_bp {
@@ -266,16 +268,20 @@ impl<'a> Parser<'a> {
                     self.lexer.next();
                     let rhs_expr = self.parse_expr(r_bp)?;
                     let span = (lhs_expr.span().start, rhs_expr.span().end).into();
-                    lhs_expr = if op == Operator::Equal {
-                        Expression::AssignmentExpression(Box::new(AssignmentExpression::new(
-                            IdentifierExpression::new(&lhs_token.lexeme(), lhs_token.span()),
-                            rhs_expr,
-                            span,
-                        )))
-                    } else {
-                        Expression::BinaryExpression(Box::new(BinaryExpression::new(
+                    lhs_expr = match op {
+                        Operator::Equal => {
+                            Expression::AssignmentExpression(Box::new(AssignmentExpression::new(
+                                IdentifierExpression::new(&lhs_token.lexeme(), lhs_token.span()),
+                                rhs_expr,
+                                span,
+                            )))
+                        }
+                        Operator::And | Operator::Or => Expression::LogicalExpression(Box::new(
+                            LogicalExpression::new(lhs_expr, op, rhs_expr, span),
+                        )),
+                        _ => Expression::BinaryExpression(Box::new(BinaryExpression::new(
                             lhs_expr, op, rhs_expr, span,
-                        )))
+                        ))),
                     };
                 }
                 _ => {
@@ -291,6 +297,8 @@ impl<'a> Parser<'a> {
 fn infix_binding_power(op: Operator) -> (u8, u8) {
     match op {
         Operator::Equal => (2, 1),
+        Operator::Or => (3, 4),
+        Operator::And => (5, 6),
         Operator::Less
         | Operator::LessEqual
         | Operator::Greater

@@ -11,6 +11,7 @@ pub enum Expression<'a> {
     BinaryExpression(Box<BinaryExpression<'a>>),
     IdentifierExpression(IdentifierExpression<'a>),
     AssignmentExpression(Box<AssignmentExpression<'a>>),
+    LogicalExpression(Box<LogicalExpression<'a>>),
 }
 
 impl std::fmt::Display for Expression<'_> {
@@ -38,6 +39,9 @@ impl std::fmt::Display for Expression<'_> {
                 "(= {} {})",
                 assignment_expression.ident.name, assignment_expression.expr
             ),
+            Expression::LogicalExpression(expr) => {
+                write!(f, "({} {} {})", expr.op, expr.lhs_expr, expr.rhs_expr)
+            }
         }
     }
 }
@@ -79,6 +83,14 @@ pub struct IdentifierExpression<'a> {
 pub struct AssignmentExpression<'a> {
     pub ident: IdentifierExpression<'a>,
     pub expr: Expression<'a>,
+    span: Span,
+}
+
+#[derive(Debug, Span, New)]
+pub struct LogicalExpression<'a> {
+    pub lhs_expr: Expression<'a>,
+    pub op: Operator,
+    pub rhs_expr: Expression<'a>,
     span: Span,
 }
 

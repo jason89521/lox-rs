@@ -15,6 +15,8 @@ pub enum Operator {
     Bang,
     Print,
     Equal,
+    And,
+    Or,
 }
 
 impl std::fmt::Display for Operator {
@@ -33,6 +35,8 @@ impl std::fmt::Display for Operator {
             Operator::Bang => write!(f, "!"),
             Operator::Print => write!(f, "print"),
             Operator::Equal => write!(f, "="),
+            Operator::And => write!(f, "and"),
+            Operator::Or => write!(f, "or"),
         }
     }
 }
@@ -53,6 +57,8 @@ impl Into<Operator> for &str {
             "==" => Operator::EqualEqual,
             "print" => Operator::Print,
             "=" => Operator::Equal,
+            "and" => Operator::And,
+            "or" => Operator::Or,
             _ => panic!("Unknown operator {self}"),
         }
     }
@@ -73,6 +79,8 @@ impl Into<Operator> for TokenKind {
             TokenKind::BangEqual => Operator::BangEqual,
             TokenKind::EqualEqual => Operator::EqualEqual,
             TokenKind::Equal => Operator::Equal,
+            TokenKind::And => Operator::And,
+            TokenKind::Or => Operator::Or,
             _ => panic!("Unknown operator {self}"),
         }
     }

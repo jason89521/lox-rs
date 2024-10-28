@@ -1,13 +1,8 @@
-{
-  var hello = "outer hello";
-  var quz = "outer quz";
-  {
-    hello = "modified hello";
-    var quz = "inner quz";
-    print hello;
-    print quz;
-  }
-  print hello;
-  print quz;
-}
-print quz;
+if (false or "ok") print "baz";
+if (nil or "ok") print "baz";
+
+if (false or false) print "world";
+if (true or "world") print "world";
+
+if (24 or "bar") print "bar";
+if ("bar" or "bar") print "bar";
