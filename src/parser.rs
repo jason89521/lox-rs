@@ -11,7 +11,10 @@ pub use expression::{
 use lox_span::GetSpan;
 pub use operator::Operator;
 pub use statement::Statement;
-use statement::{BlockStatement, ExpressionStatement, IfStatement, PrintStatement, VarDeclaration};
+use statement::{
+    BlockStatement, ExpressionStatement, IfStatement, PrintStatement, VarDeclaration,
+    WhileStatement,
+};
 
 #[derive(Debug)]
 pub enum AstKind<'a> {
@@ -158,6 +161,16 @@ impl<'a> Parser<'a> {
                     then_branch,
                     else_branch,
                     span,
+                ))));
+            }
+            TokenKind::While => {
+                let while_token = self.lexer.expect(TokenKind::While)?;
+                let condition = self.parse_expr(0)?;
+                let block = self.parse_statement(0)?;
+                let span = (while_token.span().start, block.span().end).into();
+
+                return Ok(Statement::WhileStatement(Box::new(WhileStatement::new(
+                    condition, block, span,
                 ))));
             }
             _ => {

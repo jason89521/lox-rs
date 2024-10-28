@@ -150,6 +150,11 @@ impl<'a> Interpreter<'a> {
                     self.visit_stmt(stmt.else_branch.expect("Else checked"))?
                 }
             }
+            Statement::WhileStatement(stmt) => {
+                while self.evaluate_expr(stmt.condition.clone())?.is_truthy() {
+                    self.visit_stmt(stmt.block.clone())?;
+                }
+            }
         }
 
         return Ok(());

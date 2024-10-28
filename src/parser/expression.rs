@@ -3,7 +3,7 @@ use lox_span::Span;
 
 use super::Operator;
 
-#[derive(Debug, Span)]
+#[derive(Debug, Span, Clone)]
 pub enum Expression<'a> {
     LiteralExpression(LiteralExpression<'a>),
     ParenExpression(Box<ParenExpression<'a>>),
@@ -46,26 +46,26 @@ impl std::fmt::Display for Expression<'_> {
     }
 }
 
-#[derive(Debug, Span, New)]
+#[derive(Debug, Span, New, Clone)]
 pub struct LiteralExpression<'a> {
     pub kind: LiteralKind<'a>,
     span: Span,
 }
 
-#[derive(Debug, Span, New)]
+#[derive(Debug, Span, New, Clone)]
 pub struct ParenExpression<'a> {
     pub expr: Expression<'a>,
     span: Span,
 }
 
-#[derive(Debug, Span, New)]
+#[derive(Debug, Span, New, Clone)]
 pub struct UnaryExpression<'a> {
     pub op: Operator,
     pub expr: Expression<'a>,
     span: Span,
 }
 
-#[derive(Debug, Span, New)]
+#[derive(Debug, Span, New, Clone)]
 pub struct BinaryExpression<'a> {
     pub lhs_expr: Expression<'a>,
     pub op: Operator,
@@ -73,20 +73,20 @@ pub struct BinaryExpression<'a> {
     span: Span,
 }
 
-#[derive(Debug, Span, New)]
+#[derive(Debug, Span, New, Clone)]
 pub struct IdentifierExpression<'a> {
     pub name: &'a str,
     span: Span,
 }
 
-#[derive(Debug, Span, New)]
+#[derive(Debug, Span, New, Clone)]
 pub struct AssignmentExpression<'a> {
     pub ident: IdentifierExpression<'a>,
     pub expr: Expression<'a>,
     span: Span,
 }
 
-#[derive(Debug, Span, New)]
+#[derive(Debug, Span, New, Clone)]
 pub struct LogicalExpression<'a> {
     pub lhs_expr: Expression<'a>,
     pub op: Operator,
