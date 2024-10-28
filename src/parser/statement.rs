@@ -11,6 +11,7 @@ pub enum Statement<'a> {
     BlockStatement(BlockStatement<'a>),
     IfStatement(Box<IfStatement<'a>>),
     WhileStatement(Box<WhileStatement<'a>>),
+    ForLoopStatement(Box<ForLoopStatement<'a>>),
 }
 
 #[derive(Debug, Span, New, Clone)]
@@ -49,6 +50,15 @@ pub struct IfStatement<'a> {
 #[derive(Debug, Span, New, Clone)]
 pub struct WhileStatement<'a> {
     pub condition: Expression<'a>,
+    pub block: Statement<'a>,
+    span: Span,
+}
+
+#[derive(Debug, Span, New, Clone)]
+pub struct ForLoopStatement<'a> {
+    pub init: Option<Statement<'a>>,
+    pub condition: Option<Expression<'a>>,
+    pub step: Option<Expression<'a>>,
     pub block: Statement<'a>,
     span: Span,
 }

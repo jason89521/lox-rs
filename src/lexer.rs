@@ -181,6 +181,18 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    pub fn peek_expect(&mut self, kind: TokenKind) -> anyhow::Result<Option<&Token<'a>>> {
+        let token = self.peek_token()?.and_then(|token| {
+            if token.kind() == kind {
+                Some(token)
+            } else {
+                None
+            }
+        });
+
+        Ok(token)
+    }
+
     pub fn peek(&mut self) -> Option<&Result<Token<'a>, LexerError>> {
         if self.peeked.is_none() {
             self.peeked = self.next();

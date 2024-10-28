@@ -12,8 +12,8 @@ use lox_span::GetSpan;
 pub use operator::Operator;
 pub use statement::Statement;
 use statement::{
-    BlockStatement, ExpressionStatement, IfStatement, PrintStatement, VarDeclaration,
-    WhileStatement,
+    BlockStatement, ExpressionStatement, ForLoopStatement, IfStatement, PrintStatement,
+    VarDeclaration, WhileStatement,
 };
 
 #[derive(Debug)]
@@ -172,6 +172,38 @@ impl<'a> Parser<'a> {
                 return Ok(Statement::WhileStatement(Box::new(WhileStatement::new(
                     condition, block, span,
                 ))));
+            }
+            TokenKind::For => {
+                let _for_token = self.lexer.expect(TokenKind::For)?;
+                let left_paren = self.lexer.expect(TokenKind::LeftParen)?;
+                let init = if self.lexer.peek_expect(TokenKind::Semicolon)?.is_none() {
+                    Some(self.parse_statement(0)?)
+                } else {
+                    self.lexer.next();
+                    None
+                };
+                let condition = if self.lexer.peek_expect(TokenKind::Semicolon)?.is_none() {
+                    let condition = Some(self.parse_expr(0)?);
+                    self.lexer.expect(TokenKind::Semicolon)?;
+                    condition
+                } else {
+                    self.lexer.next();
+                    None
+                };
+                let increment = if self.lexer.peek_expect(TokenKind::RightParen)?.is_none() {
+                    let increment = Some(self.parse_expr(0)?);
+                    self.lexer.expect(TokenKind::RightParen)?;
+                    increment
+                } else {
+                    self.lexer.next();
+                    None
+                };
+                let block = self.parse_statement(0)?;
+                let span = (left_paren.span().start, block.span().end).into();
+
+                return Ok(Statement::ForLoopStatement(Box::new(
+                    ForLoopStatement::new(init, condition, increment, block, span),
+                )));
             }
             _ => {
                 let expr = self.parse_expr(0)?;

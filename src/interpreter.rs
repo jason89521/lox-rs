@@ -155,6 +155,26 @@ impl<'a> Interpreter<'a> {
                     self.visit_stmt(stmt.block.clone())?;
                 }
             }
+            Statement::ForLoopStatement(stmt) => {
+                if let Some(init) = stmt.init {
+                    self.visit_stmt(init)?;
+                }
+
+                loop {
+                    let condition = if let Some(condition) = stmt.condition.clone() {
+                        self.evaluate_expr(condition)?.is_truthy()
+                    } else {
+                        true
+                    };
+                    if !condition {
+                        break;
+                    }
+                    self.visit_stmt(stmt.block.clone())?;
+                    if let Some(step) = stmt.step.clone() {
+                        self.evaluate_expr(step)?;
+                    }
+                }
+            }
         }
 
         return Ok(());
