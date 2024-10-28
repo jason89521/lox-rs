@@ -168,6 +168,19 @@ impl<'a> Lexer<'a> {
         self.has_error
     }
 
+    pub fn peek_token(&mut self) -> anyhow::Result<Option<&Token<'a>>> {
+        if self.peeked.is_none() {
+            self.peeked = self.next();
+        }
+
+        let peeked = &self.peeked;
+        match peeked {
+            Some(Ok(token)) => Ok(Some(token)),
+            Some(Err(e)) => Err(e.clone().into()),
+            None => Err(anyhow::anyhow!("No token found.")),
+        }
+    }
+
     pub fn peek(&mut self) -> Option<&Result<Token<'a>, LexerError>> {
         if self.peeked.is_none() {
             self.peeked = self.next();

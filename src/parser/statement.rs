@@ -9,6 +9,7 @@ pub enum Statement<'a> {
     ExpressionStatement(ExpressionStatement<'a>),
     VarDeclaration(VarDeclaration<'a>),
     BlockStatement(BlockStatement<'a>),
+    IfStatement(Box<IfStatement<'a>>),
 }
 
 #[derive(Debug, Span, New)]
@@ -33,5 +34,13 @@ pub struct VarDeclaration<'a> {
 #[derive(Debug, Span, New)]
 pub struct BlockStatement<'a> {
     pub stmts: Vec<Statement<'a>>,
+    span: Span,
+}
+
+#[derive(Debug, Span, New)]
+pub struct IfStatement<'a> {
+    pub condition: Expression<'a>,
+    pub then_branch: Statement<'a>,
+    pub else_branch: Option<Statement<'a>>,
     span: Span,
 }

@@ -75,7 +75,8 @@ fn main() -> anyhow::Result<()> {
             let mut interpreter = Interpreter::new(&file_contents);
             match interpreter.evaluate() {
                 Ok(_) => {
-                    //
+                    interpreter.flush()?;
+                    interpreter.print_buffer()?;
                 }
                 Err(e) => {
                     eprintln!("{e}");
@@ -96,7 +97,10 @@ fn main() -> anyhow::Result<()> {
                         println!("{:#?}", ast);
                     }
                     let mut interpreter = Interpreter::new(&file_contents);
-                    if let Err(e) = interpreter.run() {
+                    let result = interpreter.run();
+                    interpreter.flush()?;
+                    interpreter.print_buffer()?;
+                    if let Err(e) = result {
                         if let Some(_) = e.downcast_ref::<RuntimeError>() {
                             exit(70)
                         } else {

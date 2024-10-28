@@ -11,7 +11,7 @@ pub use expression::{
 use lox_span::GetSpan;
 pub use operator::Operator;
 pub use statement::Statement;
-use statement::{BlockStatement, ExpressionStatement, PrintStatement, VarDeclaration};
+use statement::{BlockStatement, ExpressionStatement, IfStatement, PrintStatement, VarDeclaration};
 
 #[derive(Debug)]
 pub enum AstKind<'a> {
@@ -133,6 +133,33 @@ impl<'a> Parser<'a> {
 
                 return Ok(Statement::BlockStatement(BlockStatement::new(stmts, span)));
             }
+            TokenKind::If => {
+                let if_token = self.lexer.expect(TokenKind::If)?;
+                let condition = self.parse_expr(0)?;
+                let then_branch = self.parse_statement(0)?;
+                let else_branch = match self.lexer.peek_token()? {
+                    Some(token) if token.kind() == TokenKind::Else => {
+                        self.lexer.next();
+                        Some(self.parse_statement(0)?)
+                    }
+                    _ => None,
+                };
+                let span = (
+                    if_token.span().start,
+                    if let Some(stmt) = &else_branch {
+                        stmt.span().end
+                    } else {
+                        then_branch.span().end
+                    },
+                )
+                    .into();
+                return Ok(Statement::IfStatement(Box::new(IfStatement::new(
+                    condition,
+                    then_branch,
+                    else_branch,
+                    span,
+                ))));
+            }
             _ => {
                 let expr = self.parse_expr(0)?;
                 let semicolon = self.lexer.expect(TokenKind::Semicolon)?;
@@ -251,10 +278,8 @@ impl<'a> Parser<'a> {
                         )))
                     };
                 }
-                TokenKind::Eof | TokenKind::Semicolon => break,
-                token => {
-                    eprintln!("kind: {token}");
-                    unimplemented!()
+                _ => {
+                    break;
                 }
             }
         }

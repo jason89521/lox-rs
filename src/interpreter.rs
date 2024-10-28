@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::io::Write;
 
 use anyhow::Result;
 
@@ -43,10 +44,21 @@ impl std::fmt::Display for Value<'_> {
     }
 }
 
+impl Value<'_> {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Value::Boolean(b) => *b,
+            Value::Nil => false,
+            _ => true,
+        }
+    }
+}
+
 pub struct Interpreter<'a> {
     parser: Parser<'a>,
     source_code: &'a str,
     context: Context<'a>,
+    buffer: Vec<u8>,
 }
 
 impl<'a> Interpreter<'a> {
@@ -56,7 +68,24 @@ impl<'a> Interpreter<'a> {
             parser,
             source_code,
             context: Context::new(),
+            buffer: vec![],
         }
+    }
+
+    pub fn flush(&mut self) -> Result<()> {
+        self.buffer.flush()?;
+        Ok(())
+    }
+
+    pub fn print_buffer(&self) -> Result<()> {
+        let output = String::from_utf8(self.buffer.clone())?;
+        print!("{output}");
+        Ok(())
+    }
+
+    pub fn output(&self) -> Result<String> {
+        let output = String::from_utf8(self.buffer.clone())?;
+        Ok(output)
     }
 
     pub fn line(&self, span: Span) -> usize {
@@ -93,7 +122,7 @@ impl<'a> Interpreter<'a> {
             Statement::PrintStatement(stmt) => {
                 let expr = stmt.expr;
                 let value = self.evaluate_expr(expr)?;
-                println!("{value}");
+                writeln!(self.buffer, "{value}")?;
             }
             Statement::ExpressionStatement(stmt) => {
                 let expr = stmt.expr;
@@ -113,6 +142,14 @@ impl<'a> Interpreter<'a> {
                 }
                 self.context.exit_block();
             }
+            Statement::IfStatement(stmt) => {
+                let condition = self.evaluate_expr(stmt.condition)?.is_truthy();
+                if condition {
+                    self.visit_stmt(stmt.then_branch)?;
+                } else if stmt.else_branch.is_some() {
+                    self.visit_stmt(stmt.else_branch.expect("Else checked"))?
+                }
+            }
         }
 
         return Ok(());
@@ -121,8 +158,7 @@ impl<'a> Interpreter<'a> {
     pub fn evaluate(&mut self) -> Result<()> {
         let expr = self.parser.parse_expr(0)?;
         let value = self.evaluate_expr(expr)?;
-
-        println!("{value}");
+        writeln!(self.buffer, "{value}")?;
         Ok(())
     }
 
@@ -273,5 +309,118 @@ impl<'a> Interpreter<'a> {
                 return Ok(val);
             }
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn expect(code: &str, expected: &str) {
+        let mut interpreter = Interpreter::new(code);
+        interpreter.run().expect("Failed to run interpreter");
+        interpreter.flush().expect("Failed to flush the buffer");
+        let output = interpreter.output().expect("Failed to get the output");
+        assert_eq!(output.trim(), expected.trim());
+    }
+
+    #[test]
+    fn string() {
+        let code = r#"print "(" + "" + ")";
+print "a string";
+print "a
+b
+c";
+print "A~¶Þॐஃ";"#;
+        let expected = r#"()
+a string
+a
+b
+c
+A~¶Þॐஃ
+"#;
+        expect(code, expected);
+    }
+
+    #[test]
+    fn number() {
+        let code = r#"
+print 123;     // expect: 123
+print 987654;  // expect: 987654
+print 0;       // expect: 0
+print -0;      // expect: -0
+
+print 123.456; // expect: 123.456
+print -0.001;  // expect: -0.001"#;
+        let expected = r#"
+123
+987654
+0
+-0
+123.456
+-0.001
+"#;
+        expect(code, expected);
+    }
+
+    #[test]
+    fn nil() {
+        let code = "print nil; // expect: nil";
+        let expected = "nil";
+        expect(code, &expected);
+    }
+
+    #[test]
+    fn bool() {
+        let code = r#"print true == true;    // expect: true
+print true == false;   // expect: false
+print false == true;   // expect: false
+print false == false;  // expect: true
+
+// Not equal to other types.
+print true == 1;        // expect: false
+print false == 0;       // expect: false
+print true == "true";   // expect: false
+print false == "false"; // expect: false
+print false == "";      // expect: false
+
+print true != true;    // expect: false
+print true != false;   // expect: true
+print false != true;   // expect: true
+print false != false;  // expect: false
+
+// Not equal to other types.
+print true != 1;        // expect: true
+print false != 0;       // expect: true
+print true != "true";   // expect: true
+print false != "false"; // expect: true
+print false != "";      // expect: true
+print !true;    // expect: false
+print !false;   // expect: true
+print !!true;   // expect: true"#;
+        let expected = r#"
+true
+false
+false
+true
+false
+false
+false
+false
+false
+false
+true
+true
+false
+true
+true
+true
+true
+true
+false
+true
+true
+"#;
+        expect(code, expected);
     }
 }
