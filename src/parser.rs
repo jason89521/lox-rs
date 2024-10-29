@@ -1,5 +1,6 @@
 use crate::{Lexer, TokenKind};
 
+mod declaration;
 mod expression;
 mod operator;
 mod statement;
@@ -13,15 +14,14 @@ pub use operator::Operator;
 pub use statement::Statement;
 use statement::{
     BlockStatement, ExpressionStatement, ForLoopStatement, IfStatement, PrintStatement,
-    VarDeclaration, WhileStatement,
+    WhileStatement,
 };
 
+pub use declaration::{Declaration, VarDeclaration};
+
 #[derive(Debug)]
-pub enum AstKind<'a> {
-    Program { body: Vec<AstKind<'a>> },
-    Statement(Statement<'a>),
-    Expression(Expression<'a>),
-    Eof,
+pub struct Program<'a> {
+    pub body: Vec<Declaration<'a>>,
 }
 
 pub struct Parser<'a> {
@@ -37,7 +37,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> anyhow::Result<AstKind<'a>> {
+    pub fn parse(&mut self) -> anyhow::Result<Program<'a>> {
         let mut body = vec![];
         while let Some(token) = self.lexer.peek() {
             if token
@@ -47,12 +47,52 @@ impl<'a> Parser<'a> {
             {
                 break;
             }
-            body.push(AstKind::Statement(self.parse_statement(0)?));
+            body.push(self.parse_declaration(0)?);
         }
 
-        body.push(AstKind::Eof);
+        Ok(Program { body })
+    }
 
-        Ok(AstKind::Program { body })
+    pub fn parse_declaration(&mut self, _min_bp: u8) -> anyhow::Result<Declaration<'a>> {
+        let token = self.lexer.peek_token()?;
+        match token.kind() {
+            TokenKind::Var => {
+                let var = self.lexer.next().unwrap().unwrap();
+                let ident = self.lexer.expect(TokenKind::Identifier)?;
+                let kind = self.lexer.peek_token()?.kind();
+
+                match kind {
+                    TokenKind::Equal => {
+                        let _equal = self.lexer.next().unwrap()?;
+                        let expr = self.parse_expr(0)?;
+                        let semicolon = self.lexer.expect(TokenKind::Semicolon)?;
+                        let span = (var.span().start, semicolon.span().end).into();
+
+                        return Ok(Declaration::VarDeclaration(VarDeclaration::new(
+                            IdentifierExpression::new(ident.lexeme(), ident.span()),
+                            Some(expr),
+                            span,
+                        )));
+                    }
+                    TokenKind::Semicolon => {
+                        let semicolon = self.lexer.next().unwrap()?;
+                        let span = (var.span().start, semicolon.span().end).into();
+
+                        return Ok(Declaration::VarDeclaration(VarDeclaration::new(
+                            IdentifierExpression::new(ident.lexeme(), ident.span()),
+                            None,
+                            span,
+                        )));
+                    }
+                    kind => {
+                        return Err(anyhow::anyhow!(
+                            "Expect equal or semicolon, but found {kind}"
+                        ))
+                    }
+                }
+            }
+            _ => Ok(Declaration::Statement(self.parse_statement(0)?)),
+        }
     }
 
     pub fn parse_statement(&mut self, _min_bp: u8) -> anyhow::Result<Statement<'a>> {
@@ -76,72 +116,26 @@ impl<'a> Parser<'a> {
                 let span = (token.span().start, semicolon.span().end).into();
                 return Ok(Statement::PrintStatement(PrintStatement::new(expr, span)));
             }
-            TokenKind::Var => {
-                let var = self.lexer.next().unwrap().unwrap();
-                let ident = self.lexer.expect(TokenKind::Identifier)?;
-                let kind = match self.lexer.peek() {
-                    Some(Ok(token)) => token.kind(),
-                    Some(Err(e)) => {
-                        let e = e.clone();
-                        self.lexer.next();
-                        return Err(e.into());
-                    }
-                    None => {
-                        return Err(anyhow::anyhow!(
-                            "Expect equal or semicolon, but no token found"
-                        ));
-                    }
-                };
-                match kind {
-                    TokenKind::Equal => {
-                        let _equal = self.lexer.next().unwrap()?;
-                        let expr = self.parse_expr(0)?;
-                        let semicolon = self.lexer.expect(TokenKind::Semicolon)?;
-                        let span = (var.span().start, semicolon.span().end).into();
-
-                        return Ok(Statement::VarDeclaration(VarDeclaration::new(
-                            IdentifierExpression::new(ident.lexeme(), ident.span()),
-                            Some(expr),
-                            span,
-                        )));
-                    }
-                    TokenKind::Semicolon => {
-                        let semicolon = self.lexer.next().unwrap()?;
-                        let span = (var.span().start, semicolon.span().end).into();
-
-                        return Ok(Statement::VarDeclaration(VarDeclaration::new(
-                            IdentifierExpression::new(ident.lexeme(), ident.span()),
-                            None,
-                            span,
-                        )));
-                    }
-                    kind => {
-                        return Err(anyhow::anyhow!(
-                            "Expect equal or semicolon, but found {kind}"
-                        ))
-                    }
-                }
-            }
             TokenKind::LeftBrace => {
                 let left_brace = self.lexer.next().unwrap()?;
-                let mut stmts = vec![];
+                let mut decls = vec![];
                 while let Some(Ok(token)) = self.lexer.peek().as_ref() {
                     if token.kind() == TokenKind::RightBrace {
                         break;
                     }
-                    stmts.push(self.parse_statement(0)?);
+                    decls.push(self.parse_declaration(0)?);
                 }
                 let right_brace = self.lexer.expect(TokenKind::RightBrace)?;
                 let span = (left_brace.span().start, right_brace.span().end).into();
 
-                return Ok(Statement::BlockStatement(BlockStatement::new(stmts, span)));
+                return Ok(Statement::BlockStatement(BlockStatement::new(decls, span)));
             }
             TokenKind::If => {
                 let if_token = self.lexer.expect(TokenKind::If)?;
                 let condition = self.parse_expr(0)?;
                 let then_branch = self.parse_statement(0)?;
                 let else_branch = match self.lexer.peek_token()? {
-                    Some(token) if token.kind() == TokenKind::Else => {
+                    token if token.kind() == TokenKind::Else => {
                         self.lexer.next();
                         Some(self.parse_statement(0)?)
                     }
@@ -177,7 +171,7 @@ impl<'a> Parser<'a> {
                 let _for_token = self.lexer.expect(TokenKind::For)?;
                 let left_paren = self.lexer.expect(TokenKind::LeftParen)?;
                 let init = if self.lexer.peek_expect(TokenKind::Semicolon)?.is_none() {
-                    Some(self.parse_statement(0)?)
+                    Some(self.parse_declaration(0)?)
                 } else {
                     self.lexer.next();
                     None

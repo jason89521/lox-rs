@@ -92,9 +92,9 @@ fn main() -> anyhow::Result<()> {
             let file_contents = read_file(filename);
             let mut parser = codecrafters_interpreter::Parser::new(&file_contents);
             match parser.parse() {
-                Ok(ast) => {
+                Ok(program) => {
                     if *debug {
-                        println!("{:#?}", ast);
+                        println!("{:#?}", program);
                     }
                     let mut interpreter = Interpreter::new(&file_contents);
                     let result = interpreter.run();

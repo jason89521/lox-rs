@@ -4,7 +4,7 @@ use std::io::Write;
 use anyhow::Result;
 
 use crate::{
-    AstKind, BinaryExpression, Expression, LiteralKind, Operator, Parser, Statement,
+    BinaryExpression, Declaration, Expression, LiteralKind, Operator, Parser, Program, Statement,
     UnaryExpression,
 };
 use lox_span::{GetSpan, Span};
@@ -99,22 +99,27 @@ impl<'a> Interpreter<'a> {
         Ok(())
     }
 
-    pub fn eval(&mut self, ast: AstKind<'a>) -> Result<()> {
-        match ast {
-            AstKind::Program { body } => {
-                for ast in body {
-                    self.eval(ast)?;
-                }
-                return Ok(());
-            }
-            AstKind::Statement(statement) => return self.visit_stmt(statement),
-            AstKind::Eof => {}
-            AstKind::Expression(expression) => {
-                self.evaluate_expr(expression)?;
-            }
+    pub fn eval(&mut self, program: Program<'a>) -> Result<()> {
+        for declaration in program.body {
+            self.visit_declaration(declaration)?;
         }
 
         return Ok(());
+    }
+
+    fn visit_declaration(&mut self, declaration: Declaration<'a>) -> Result<()> {
+        match declaration {
+            Declaration::VarDeclaration(var_declaration) => {
+                let value = match var_declaration.init {
+                    Some(expr) => self.evaluate_expr(expr)?,
+                    None => Value::Nil,
+                };
+                self.context.declare(var_declaration.ident.name, value);
+            }
+            Declaration::Statement(statement) => self.visit_stmt(statement)?,
+        }
+
+        Ok(())
     }
 
     fn visit_stmt(&mut self, stmt: Statement<'a>) -> Result<()> {
@@ -128,17 +133,10 @@ impl<'a> Interpreter<'a> {
                 let expr = stmt.expr;
                 self.evaluate_expr(expr)?;
             }
-            Statement::VarDeclaration(declaration) => {
-                let value = match declaration.init {
-                    Some(expr) => self.evaluate_expr(expr)?,
-                    None => Value::Nil,
-                };
-                self.context.declare(declaration.ident.name, value);
-            }
             Statement::BlockStatement(block) => {
                 self.context.enter_block();
-                for stmt in block.stmts.into_iter() {
-                    self.visit_stmt(stmt)?;
+                for stmt in block.decl.into_iter() {
+                    self.visit_declaration(stmt)?;
                 }
                 self.context.exit_block();
             }
@@ -157,7 +155,7 @@ impl<'a> Interpreter<'a> {
             }
             Statement::ForLoopStatement(stmt) => {
                 if let Some(init) = stmt.init {
-                    self.visit_stmt(init)?;
+                    self.visit_declaration(init)?;
                 }
 
                 loop {

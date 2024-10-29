@@ -1,13 +1,12 @@
 use lox_derive::{New, Span};
 use lox_span::Span;
 
-use super::expression::{Expression, IdentifierExpression};
+use super::{expression::Expression, Declaration};
 
 #[derive(Debug, Span, Clone)]
 pub enum Statement<'a> {
     PrintStatement(PrintStatement<'a>),
     ExpressionStatement(ExpressionStatement<'a>),
-    VarDeclaration(VarDeclaration<'a>),
     BlockStatement(BlockStatement<'a>),
     IfStatement(Box<IfStatement<'a>>),
     WhileStatement(Box<WhileStatement<'a>>),
@@ -27,15 +26,8 @@ pub struct ExpressionStatement<'a> {
 }
 
 #[derive(Debug, Span, New, Clone)]
-pub struct VarDeclaration<'a> {
-    pub ident: IdentifierExpression<'a>,
-    pub init: Option<Expression<'a>>,
-    span: Span,
-}
-
-#[derive(Debug, Span, New, Clone)]
 pub struct BlockStatement<'a> {
-    pub stmts: Vec<Statement<'a>>,
+    pub decl: Vec<Declaration<'a>>,
     span: Span,
 }
 
@@ -56,7 +48,7 @@ pub struct WhileStatement<'a> {
 
 #[derive(Debug, Span, New, Clone)]
 pub struct ForLoopStatement<'a> {
-    pub init: Option<Statement<'a>>,
+    pub init: Option<Declaration<'a>>,
     pub condition: Option<Expression<'a>>,
     pub step: Option<Expression<'a>>,
     pub block: Statement<'a>,
